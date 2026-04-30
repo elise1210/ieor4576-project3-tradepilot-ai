@@ -1,14 +1,8 @@
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Optional
 
-from app.agents.news_agent import run_news_agent
-from app.tools.sentiment_tool import analyze_news_sentiment
-from app.agents.decision_agent import generate_decision, format_decision_output
-from app.agents.market_agent import run_market_agent
+from app.orchestrator import run_tradepilot_pipeline
 
 
 app = FastAPI(title="TradePilot AI")
@@ -16,7 +10,104 @@ app = FastAPI(title="TradePilot AI")
 
 class ChatRequest(BaseModel):
     query: str
-    ticker: str
+    ticker: Optional[str] = None
+
+
+def demo_news_skill(ticker: str, query: str) -> dict:
+    return {
+        "ticker": ticker,
+        "summary": f"{ticker} received mostly positive recent coverage.",
+        "items": [
+            {"headline": f"{ticker} positive headline 1"},
+            {"headline": f"{ticker} positive headline 2"},
+        ],
+        "article_count": 2,
+        "query_echo": query,
+    }
+
+
+def demo_market_skill(ticker: str) -> dict:
+    return {
+        "ticker": ticker,
+        "trend_7d": 0.03,
+        "trend_label": "upward",
+        "volatility": 0.018,
+    }
+
+
+def demo_fundamentals_skill(ticker: str) -> dict:
+    return {
+        "ticker": ticker,
+        "summary": f"{ticker} has a stable large-cap business profile.",
+        "market_cap_bucket": "large_cap",
+    }
+
+
+def demo_sentiment_skill(news_result: dict) -> dict:
+    return {
+        "sentiment": "positive",
+        "score": 0.42,
+        "dispersion": 0.10,
+        "source_ticker": news_result.get("ticker"),
+    }
+
+
+DEMO_SKILLS = {
+    "news": demo_news_skill,
+    "market": demo_market_skill,
+    "fundamentals": demo_fundamentals_skill,
+    "sentiment": demo_sentiment_skill,
+}
+
+
+def format_pipeline_answer(state: dict) -> str:
+    if state.get("needs_human"):
+        return state.get("clarification_question") or "More information is needed."
+
+    decision = state.get("decision") or {}
+    if not decision:
+        return "The pipeline did not produce a final decision."
+
+    if decision.get("type") == "comparison":
+        lines = [
+            "Comparison Result:",
+            decision.get("comparison_summary", "No comparison summary available."),
+            "",
+        ]
+
+        per_ticker = decision.get("per_ticker", {})
+        for ticker, result in per_ticker.items():
+            lines.append(
+                f"{ticker}: {result.get('recommendation', 'N/A')} "
+                f"(Confidence: {result.get('confidence', 'N/A')})"
+            )
+
+        disclaimer = decision.get("disclaimer")
+        if disclaimer:
+            lines.extend(["", disclaimer])
+
+        return "\n".join(lines)
+
+    lines = [
+        f"Recommendation: {decision.get('recommendation', 'N/A')}",
+        f"Confidence: {decision.get('confidence', 'N/A')}",
+        f"Risk Level: {decision.get('risk_level', 'N/A')}",
+        "",
+        "Reason:",
+    ]
+
+    for item in decision.get("reasoning", []):
+        lines.append(f"- {item}")
+
+    key_driver = decision.get("drivers", {}).get("key_driver")
+    if key_driver:
+        lines.extend(["", f"Key Driver: {key_driver}"])
+
+    disclaimer = decision.get("disclaimer")
+    if disclaimer:
+        lines.extend(["", disclaimer])
+
+    return "\n".join(lines)
 
 
 @app.get("/health")
@@ -26,40 +117,15 @@ def health():
 
 @app.post("/chat")
 def chat(req: ChatRequest):
-    ticker = req.ticker.upper().strip()
-    query = req.query.strip()
-
-    print(f"Processing: {ticker} | {query}")
-
-    news_result = run_news_agent(
-        ticker=ticker,
-        user_query=query,
-        days=7,
-        max_items=8,
-    )
-
-    try:
-        sentiment_result = analyze_news_sentiment(news_result)
-    except Exception as e:
-        print("Sentiment error:", e)
-        sentiment_result = {
-            "sentiment": "neutral",
-            "score": 0.0,
-            "dispersion": 0.0
-        }
-
-    market_result = run_market_agent(ticker)
-
-    decision = generate_decision(
-        ticker=ticker,
-        news_result=news_result,
-        sentiment_result=sentiment_result,
-        market_result=market_result,
-        company_result=None,
+    state = run_tradepilot_pipeline(
+        query=req.query,
+        ticker=req.ticker,
+        skills=DEMO_SKILLS,
     )
 
     return {
-        "ticker": ticker,
-        "query": query,
-        "answer": format_decision_output(decision),
+        "query": req.query,
+        "ticker": req.ticker,
+        "answer": format_pipeline_answer(state),
+        "state": state,
     }
