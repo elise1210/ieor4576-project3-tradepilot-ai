@@ -1,3 +1,7 @@
+from app.state import clone_state
+from typing import Optional
+
+
 def _safe_float(x, default=0.0):
     try:
         if x is None:
@@ -85,7 +89,7 @@ def generate_decision(
     news_result: dict,
     sentiment_result: dict,
     market_result: dict,
-    company_result: dict | None = None,
+    company_result: Optional[dict] = None,
 ) -> dict:
     """
     TradePilot Decision Agent.
@@ -192,3 +196,69 @@ def format_decision_output(decision: dict) -> str:
     ])
 
     return "\n".join(lines)
+
+
+def _extract_ticker_evidence(state: dict, evidence_type: str, ticker: str) -> dict:
+    return state.get("evidence", {}).get(evidence_type, {}).get(ticker, {})
+
+
+def _comparison_summary(decisions: dict) -> str:
+    ordered = sorted(
+        decisions.values(),
+        key=lambda item: item.get("combined_score", 0.0),
+        reverse=True,
+    )
+
+    if len(ordered) < 2:
+        return f"{ordered[0]['ticker']} has the stronger overall signal right now."
+
+    first = ordered[0]
+    second = ordered[1]
+    if first["combined_score"] == second["combined_score"]:
+        return "The compared companies have very similar overall signals right now."
+
+    return (
+        f"{first['ticker']} has the stronger overall signal right now, "
+        f"mainly due to a better combined sentiment and trend profile than {second['ticker']}."
+    )
+
+
+def run_decision_agent(state: dict) -> dict:
+    next_state = clone_state(state)
+    tickers = list(next_state.get("tickers", []))
+
+    if not tickers:
+        next_state["decision"] = {
+            "error": "No ticker available for decision.",
+        }
+        return next_state
+
+    decisions = {}
+    for ticker in tickers:
+        decision = generate_decision(
+            ticker=ticker,
+            news_result=_extract_ticker_evidence(next_state, "news", ticker),
+            sentiment_result=_extract_ticker_evidence(next_state, "sentiment", ticker),
+            market_result=_extract_ticker_evidence(next_state, "market", ticker),
+            company_result=_extract_ticker_evidence(next_state, "fundamentals", ticker),
+        )
+        decisions[ticker] = decision
+
+    if len(tickers) == 1:
+        final_decision = decisions[tickers[0]]
+    else:
+        final_decision = {
+            "type": "comparison",
+            "tickers": tickers,
+            "comparison_summary": _comparison_summary(decisions),
+            "per_ticker": decisions,
+            "confidence": next_state.get("confidence") or "Medium",
+            "disclaimer": (
+                "This comparison is informational only and not personalized financial advice."
+            ),
+        }
+
+    next_state["decision"] = final_decision
+    next_state["confidence"] = final_decision.get("confidence", next_state.get("confidence"))
+
+    return next_state
