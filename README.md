@@ -2,217 +2,317 @@
 
 IEOR 4576 Project 3
 
-TradePilot AI is a financial decision support system that helps a user analyze a stock, compare companies, and understand the evidence behind a recommendation. The system is designed around a multi-agent workflow, tool calling, shared state, and human-in-the-loop checkpoints instead of a single monolithic prompt.
+TradePilot AI is a multi-agent financial decision support system. It helps a user analyze a stock, compare companies, and understand the evidence behind a recommendation such as `BUY`, `HOLD`, or `SELL`.
+
+The key design idea is simple:
+
+- `agents` decide what to do
+- `skill modules` handle content-related work such as fetching, analysis, and formatting
+- `sub-skills` handle the supporting assistant work each agent uses to do its job
+
+This README uses that structure consistently.
 
 ## Project Goal
 
-Users often have to jump across multiple sources to answer simple investing questions:
+Users often have to switch between multiple websites and tools to answer simple questions:
 
 - What happened to this stock recently?
-- Is the recent news positive or negative?
+- Is the news positive or negative?
 - Is the company fundamentally strong?
-- Should I buy, hold, or wait?
+- Should I buy now, hold, or wait?
 
-TradePilot AI combines market data, company news, fundamentals, sentiment analysis, and structured reasoning into one decision-oriented workflow.
+TradePilot AI combines market data, company news, fundamentals, sentiment analysis, and structured reasoning into one workflow.
 
-This system is for informational and educational use only. It is not financial advice.
+This system is for educational and informational use only. It is not financial advice.
 
-## Core Design
+## System Overview
 
-The system uses 4 reasoning agents and a shared run state.
+The system uses 4 reasoning agents:
 
 ```text
 User Query
   ->
 Planner / Supervisor Agent
   ->
-Research / Tool-Using Analyst Agent
+Research / Evidence-Building Agent
   ->
 Critic / Verifier Agent
   ->
 Decision / Response Agent
 ```
 
-The workflow is iterative rather than strictly one-pass:
+The workflow can loop when the evidence is not strong enough:
 
 ```text
 Planner -> Research -> Critic
                     -> if gaps remain: Research again
-                    -> if evidence is sufficient: Decision
-                    -> if ambiguity or risk is high: Human-in-the-Loop
+                    -> if enough evidence: Decision
+                    -> if ambiguity is high: Human-in-the-Loop
 ```
 
-This design lets the system gather evidence, inspect whether that evidence is enough, and ask for clarification when confidence is too low.
+## Why This Design
 
-## Why This Architecture
+The project originally treated domain pieces like news, market, and company context as if they were top-level agents. In this design, they are handled as reusable skill modules instead.
 
-The original project structure treated agents almost like function wrappers such as news, market, and company agents. In this version, those become reusable skills or tools, while agents handle reasoning stages.
+This gives us a cleaner separation:
 
-- Agents decide what to do
-- Skills perform reusable work
-- Shared state keeps the workflow consistent
+- agents handle reasoning stages
+- skill modules handle fetching, analysis, or formatting work
+- sub-skills explain each agent's concrete abilities
 
-This makes the system easier to extend, debug, and explain in a course setting.
+## Current External Data Sources
 
-## Agent Responsibilities
+Right now the system uses:
+
+- `yfinance`
+  - raw stock price and volume history
+- `Finnhub`
+  - company news, quote data, company profile, and basic fundamentals
+
+It also uses:
+
+- `FinBERT`
+  - sentiment analysis model for financial news
+
+So:
+
+- external data providers: `2`
+- outside analysis model: `1`
+
+## Skill Modules
+
+These are the main reusable modules in the system.
+
+### Fetching Skill Modules
+
+- `yfinance_tool`
+  - fetches raw stock history such as date, open, high, low, close, and volume
+  - this is mainly a fetcher
+
+- `finnhub_tool`
+  - fetches raw news, quote, company profile, and basic financial data from Finnhub
+  - this is mainly a fetcher
+
+### Analysis Skill Modules
+
+- `market`
+  - turns raw price history into signals such as trend, volatility, moving-average context, and later RSI or drawdown
+  - this is an analysis skill
+
+- `news`
+  - filters noisy articles, keeps company-relevant news, ranks price-relevant items, and summarizes the coverage
+  - this is an analysis skill
+
+- `fundamentals`
+  - turns raw company profile and financial fields into usable company context
+  - this is an analysis skill
+
+- `sentiment`
+  - runs FinBERT on recent news and aggregates the overall sentiment
+  - this is an analysis skill
+
+### Presentation / Safety Skill Modules
+
+- `chart`
+  - turns structured evidence into chart-ready output for the frontend
+  - this is a presentation skill
+
+- `compliance`
+  - adds safer wording, uncertainty language, and disclaimer logic
+  - this is a response-safety skill
+
+## Agent Responsibilities and Skills
+
+This is the most important section. Each agent has its own role, its own sub-skills, and its own skill modules.
 
 ### 1. Planner / Supervisor Agent
 
-Responsibilities:
+Main job:
 
-- understand user intent
-- extract company names and tickers
-- identify time horizon such as short-term vs long-term
-- decide what categories of evidence are needed
-- define stop criteria for "enough evidence"
-- trigger human clarification when the query is ambiguous
+- understand the question
+- identify the ticker or company
+- decide what evidence is needed
+- decide whether the system should ask the user for clarification
 
-Example outputs:
+Sub-skills owned by the Planner:
 
-- single-stock recommendation
-- company comparison
-- explanatory company analysis
-- deeper research request
+- `intent_classification`
+  - figure out what kind of question the user is asking
+- `entity_extraction`
+  - pull out ticker, company name, and time horizon
+- `task_planning`
+  - decide what evidence categories are needed before answering
+- `routing`
+  - choose the right workflow such as single-stock analysis, comparison, or deeper research
+- `human_gate_check`
+  - decide whether the system should pause and ask the user a clarifying question
 
-### 2. Research / Tool-Using Analyst Agent
+Skill modules used by the Planner:
 
-Responsibilities:
+- none of the data skills directly by default
+- the Planner mainly works on the query and the shared state
 
-- inspect the current run state
-- reason about missing evidence
-- choose which tool or skill to call next
-- fetch and normalize market, news, and company data
-- compute technical signals
-- request chart generation when useful
+Planner output:
 
-This is not just a fetcher. It is allowed to think about what evidence is still missing and what action best fills the gap.
+- intent
+- ticker(s)
+- required evidence
+- stop criteria
+- whether human clarification is needed
+
+### 2. Research / Evidence-Building Agent
+
+Main job:
+
+- gather the evidence
+- analyze the evidence
+- organize the evidence into shared state
+
+Important note:
+
+The Research Agent is not just a fetcher. It does both:
+
+- fetching raw data
+- building usable evidence from that data
+
+But it does not make the final recommendation.
+
+Sub-skills owned by the Research Agent:
+
+- `gap_reasoning`
+  - look at the current state and decide what evidence is still missing
+- `tool_selection`
+  - choose which skill module to call next
+- `comparison_alignment`
+  - make sure both companies are evaluated using the same kinds of evidence
+- `technical_signal_skill`
+  - turn price history into simple market signals
+- `news_filtering`
+  - keep only relevant and useful company news
+- `sentiment_aggregation`
+  - turn article-level sentiment into one overall signal
+- `evidence_normalization`
+  - store all collected results in a clean shared structure
+- `chart_requesting`
+  - ask for a chart when a graph would improve the answer
+
+Skill modules used by the Research Agent:
+
+- `yfinance_tool`
+  - fetch raw stock price history
+- `finnhub_tool`
+  - fetch raw news, quote, profile, and fundamentals
+- `market`
+  - analyze market behavior
+- `news`
+  - filter and summarize company news
+- `fundamentals`
+  - structure company background and financial context
+- `sentiment`
+  - score recent news sentiment
+- `chart`
+  - optionally produce graph-ready output
+
+Research output:
+
+- market evidence
+- news evidence
+- company/fundamental evidence
+- sentiment evidence
+- chart spec when useful
+- updated gaps if more research is needed
 
 ### 3. Critic / Verifier Agent
 
-Responsibilities:
+Main job:
 
-- check whether evidence is sufficient
-- check whether news and price data are fresh enough
-- check whether comparisons are fair across tickers
-- detect conflicting signals
-- send structured follow-up requests back to the research agent
-- trigger human review when confidence is too low
+- check whether the collected evidence is strong enough, current enough, and fair enough
+
+The Critic usually does not fetch data itself. It inspects what the Research Agent already produced.
+
+Sub-skills owned by the Critic:
+
+- `evidence_sufficiency_check`
+  - decide whether there is enough information to answer well
+- `freshness_check`
+  - make sure the data is recent enough to trust
+- `fairness_check`
+  - make sure comparisons are balanced across both companies
+- `conflict_detection`
+  - spot signals that disagree with each other
+- `followup_generation`
+  - list the exact extra evidence the Research Agent should collect
+- `confidence_scoring`
+  - estimate how confident the system should be
+
+Skill modules used by the Critic:
+
+- no direct fetching modules by default
+- the Critic mainly reads shared evidence produced by the Research Agent
+
+Critic output:
+
+- enough evidence or not
+- missing evidence list
+- follow-up tasks
+- confidence estimate
+- human-review trigger when needed
 
 ### 4. Decision / Response Agent
 
-Responsibilities:
+Main job:
 
-- synthesize the evidence
-- produce a BUY / HOLD / SELL style output, or a comparison result
-- explain the major drivers clearly
-- calibrate uncertainty
-- add financial-risk and compliance language
+- turn evidence into the final answer
+- explain the answer clearly
+- avoid overconfident wording
+
+The Decision Agent should not be responsible for collecting evidence. It should work from the structured results already prepared.
+
+Sub-skills owned by the Decision Agent:
+
+- `recommendation_reasoning`
+  - turn the evidence into a final recommendation or comparison
+- `uncertainty_calibration`
+  - avoid sounding more certain than the evidence allows
+- `response_generation`
+  - write the final answer in a clear and useful way
+- `evidence_citation`
+  - point to the key facts that support the conclusion
+- `risk_language_control`
+  - keep the tone careful when the evidence is weak or mixed
+
+Skill modules used by the Decision Agent:
+
+- `compliance`
+  - add disclaimer logic and safer wording
+- `chart`
+  - optionally include chart-based explanation if already prepared
+
+Decision output:
+
+- final recommendation or comparison
+- reasoning
+- confidence level
+- uncertainty language
+- disclaimer
 
 ## Human-in-the-Loop
 
-Human-in-the-loop is a first-class part of the system.
+Human-in-the-loop is part of the system, not an afterthought.
 
 The system should pause and ask the user when:
 
 - the ticker is ambiguous
 - the user goal is unclear
-- evidence is sparse or conflicting
-- confidence is too low for a strong recommendation
-- the system needs the user to choose between short-term and long-term analysis
-
-This prevents the system from pretending certainty when it should ask for guidance.
-
-## Skills and Tools
-
-The system separates reasoning agents from reusable skills.
-
-### Planner Skills
-
-- `intent_classification`: figure out what kind of question the user is asking
-- `entity_extraction`: pull out the company names, tickers, and time horizon
-- `task_planning`: decide what information the system needs before answering
-- `routing`: choose the right workflow, such as single-stock analysis or comparison
-- `human_gate_check`: decide whether the system should pause and ask the user to clarify something
-
-### Research Skills
-
-- `gap_reasoning`: look at the current evidence and decide what is still missing
-- `tool_selection`: choose the best tool or skill to call next
-- `market_data_skill`: fetch stock prices, returns, and trading history
-- `news_skill`: fetch recent company news
-- `fundamentals_skill`: fetch company profile details and basic financial numbers
-- `sentiment_skill`: score whether the recent news is positive, neutral, or negative
-- `technical_signal_skill`: turn raw price data into simple signals like trend, volatility, and RSI
-- `chart_skill`: turn structured market data into a chart specification for the frontend
-- `comparison_alignment`: make sure both companies are judged using the same kinds of evidence
-
-### Critic Skills
-
-- `evidence_sufficiency_check`: decide whether there is enough information to answer well
-- `freshness_check`: make sure the data is recent enough to trust
-- `fairness_check`: make sure a comparison is balanced across both companies
-- `conflict_detection`: spot signals that disagree with each other
-- `followup_generation`: list the exact extra information the research agent should collect
-- `confidence_scoring`: estimate how confident the system should be in its answer
-
-### Decision Skills
-
-- `recommendation_reasoning`: turn the evidence into a final recommendation or comparison
-- `uncertainty_calibration`: avoid sounding more certain than the evidence allows
-- `compliance_skill`: add careful wording so the answer does not sound like reckless financial advice
-- `response_generation`: write the final answer in a clear and helpful way
-- `evidence_citation`: point to the key facts that support the recommendation
-
-## Data Stack
-
-The MVP uses lightweight, high-value financial data sources.
-
-### 1. Market Data: `yfinance`
-
-Used for:
-
-- price history
-- daily returns
-- volatility
-- moving averages
-- RSI
-- drawdown
-- chart-ready series
-
-### 2. News and Fundamentals: `Finnhub`
-
-Used for:
-
-- recent company news
-- quote data
-- company profile
-- basic financial metrics
-- 52-week range
-- market capitalization
-- valuation context
-
-### 3. Sentiment: `FinBERT`
-
-Used for:
-
-- headline and summary sentiment
-- aggregate positive / neutral / negative signal
-- sentiment score for decision support
-
-### 4. Derived Internal Signals
-
-Used for:
-
-- trend classification
-- short-term risk label
-- comparison summaries
-- evidence confidence estimation
+- the user did not specify short-term vs long-term intent
+- the evidence is thin or conflicting
+- confidence is too low for a strong answer
 
 ## Shared State
 
-All agents operate over a shared `RunState` instead of passing only free-form text.
+All agents work over a shared `RunState` rather than only passing free-form text.
 
-Example structure:
+Example:
 
 ```json
 {
@@ -240,103 +340,36 @@ Example structure:
 }
 ```
 
-This shared state supports better orchestration, debugging, and evaluation.
+This shared state helps with:
 
-## Evidence Loop
+- context management
+- debugging
+- multi-step orchestration
+- evaluation
 
-The system is built around a bounded research loop.
+## Evidence Flow
+
+The evidence flow is intentionally bounded.
 
 ```text
-1. Planner creates an initial task plan
-2. Research gathers and normalizes evidence
-3. Critic checks sufficiency and fairness
-4. If gaps remain, Research fetches additional evidence
-5. Decision produces the final response
+1. Planner decides what evidence is needed
+2. Research fetches and analyzes evidence
+3. Critic checks if the evidence is sufficient
+4. If needed, Research runs again for missing pieces
+5. Decision produces the final answer
 6. Human-in-the-loop interrupts when needed
 ```
 
-To keep the workflow safe and efficient, the loop should include:
+To keep the system safe and efficient, we should include:
 
 - max iteration limits
 - tool budgets
-- freshness checks
+- freshness rules
 - explicit stop conditions
 
-## Visualization
+## Proposed Repository Structure
 
-Charts are treated as a reusable skill, not arbitrary code generation.
-
-The preferred pattern is:
-
-- research agent decides whether a chart is useful
-- chart skill produces a structured chart specification
-- frontend renders the chart
-
-This is more reliable than having an agent write plotting code from scratch during each run.
-
-## Optional Future Extension: RAG
-
-RAG is not required for the MVP recommendation loop, but it can be added later for long-horizon company context such as:
-
-- company milestones
-- major M&A history
-- strategic background
-- product launches
-- earnings-history themes
-
-For the default recommendation flow, live APIs and derived signals are enough.
-
-## Course Concepts Demonstrated
-
-This project is intentionally aligned with the main themes of IEOR 4576.
-
-### Multi-Agent Patterns
-
-- planner / supervisor
-- research agent
-- critic / verifier
-- decision agent
-- human-in-the-loop checkpointing
-
-### Tool Calling
-
-- external market and news APIs
-- sentiment model invocation
-- chart generation as a structured tool
-
-### Context Engineering
-
-- shared run state
-- selective evidence passing
-- role-specific prompts
-- normalized evidence instead of raw tool dumps
-
-### State, Context, and Memory
-
-- persistent run state across agent steps
-- explicit tracking of evidence, gaps, and confidence
-
-### Evaluation
-
-- critic-based evidence checks
-- confidence scoring
-- later support for rubric-based evaluation or LLM-as-judge
-
-### Agents as Functions
-
-Each agent can be viewed as a state transformation:
-
-- `plan(state) -> state`
-- `research(state) -> state`
-- `critic(state) -> state`
-- `decide(state) -> state`
-
-### RAG
-
-- optional future layer for long-term company history
-- not required for core real-time recommendation flow
-
-## Proposed Repository Shape
+This is the consistent structure we want to build toward:
 
 ```text
 tradepilot-ai/
@@ -355,7 +388,9 @@ tradepilot-ai/
 |   |   |-- fundamentals.py
 |   |   |-- sentiment.py
 |   |   |-- chart.py
-|   |   `-- compliance.py
+|   |   |-- compliance.py
+|   |   |-- yfinance_tool.py
+|   |   `-- finnhub_tool.py
 |   `-- prompts/
 |-- frontend/
 |   `-- index.html
@@ -364,39 +399,111 @@ tradepilot-ai/
 `-- cloudbuild.yaml
 ```
 
+## Current Build Status
+
+The current work in the repo mostly covers the research-side functionality first.
+
+Implemented or partly implemented:
+
+- `news`
+- `market`
+- `sentiment`
+- `finnhub_tool`
+- `decision_agent`
+
+Still mostly placeholders:
+
+- `planner_agent`
+- `research_agent`
+- `critic_agent`
+- `fundamentals`
+- `chart`
+- `compliance`
+- `yfinance_tool`
+- `state`
+
+This means the project already has important evidence-processing pieces, but the full orchestration layer is not finished yet.
+
+## Course Concepts Demonstrated
+
+This project is designed to connect clearly to IEOR 4576 themes.
+
+### Multi-Agent Patterns
+
+- planner / supervisor
+- research / evidence-building
+- critic / verifier
+- decision / response
+- human-in-the-loop
+
+### Tool Calling
+
+- fetch live stock and company data
+- run a sentiment model
+- generate chart-ready outputs
+
+### Context Engineering
+
+- shared run state
+- role-specific prompts
+- normalized evidence instead of raw dumps
+
+### State, Context, and Memory
+
+- explicit tracking of evidence, gaps, confidence, and human checkpoints
+
+### Evaluation
+
+- evidence sufficiency checks
+- fairness checks
+- confidence scoring
+
+### Agents as Functions
+
+Each agent can be viewed as a state transformation:
+
+- `plan(state) -> state`
+- `research(state) -> state`
+- `critic(state) -> state`
+- `decide(state) -> state`
+
+### RAG
+
+- optional future extension for long-term company history, milestones, or M&A context
+- not required for the core MVP loop
+
 ## MVP Scope
 
 The first working version should support:
 
 - single-stock analysis
-- BUY / HOLD / SELL style recommendation
+- evidence-backed `BUY / HOLD / SELL` style output
 - two-company comparison
-- evidence-backed reasoning
 - human clarification when needed
-- chart generation from structured market data
+- optional simple chart output
 
-The MVP should not try to do everything at once. In particular, it should avoid:
+The MVP should avoid doing too much at once. In particular, it should not start with:
 
-- large-scale patent retrieval
-- complex long-term knowledge bases
+- patent search
+- heavy long-term knowledge retrieval
 - too many specialized agents
 - unbounded autonomous loops
 
 ## Next Build Priorities
 
-1. define `RunState`
-2. implement market, news, fundamentals, and sentiment skills
-3. implement the planner agent
-4. implement the research agent
-5. implement the critic agent
-6. implement the decision agent
-7. add human-in-the-loop checkpoints
-8. add chart rendering
-9. add optional RAG only if time remains
+1. finish `state.py`
+2. fix imports so the current skill modules are wired correctly
+3. finish `yfinance_tool.py`
+4. finish `fundamentals.py`
+5. implement `research_agent.py`
+6. implement `planner_agent.py`
+7. implement `critic_agent.py`
+8. add `compliance.py`
+9. add `chart.py`
 
 ## Security Note
 
-API keys should never be stored directly in notebooks, prompts, or committed files. All credentials should be loaded from environment variables or a secure secret manager.
+API keys should never be stored directly in notebooks, prompts, or committed files. They should be loaded from environment variables or a secure secret manager.
 
 ## Disclaimer
 
