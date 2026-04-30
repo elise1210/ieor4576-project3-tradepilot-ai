@@ -1,0 +1,8 @@
+fastapi[standard]
+finnhub-python
+numpy
+pandas
+python-dotenv
+torch
+transformers
+yfinance
