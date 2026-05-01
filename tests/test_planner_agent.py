@@ -59,6 +59,22 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["metadata"]["ticker_source"], "explicit_query")
         self.assertFalse(result["needs_human"])
 
+    def test_irrelevant_query_is_marked_out_of_scope(self):
+        state = build_initial_state("What is the weather in New York tomorrow?")
+
+        result = run_planner_agent(state)
+
+        self.assertTrue(result["guardrails"]["out_of_scope"])
+        self.assertIn("informational stock analysis", result["guardrails"]["message"])
+
+    def test_weekly_forecast_request_gets_scope_note(self):
+        state = build_initial_state("Should I sell Tesla this week?")
+
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["tickers"], ["TSLA"])
+        self.assertIn("cannot forecast the full week", result["guardrails"]["scope_note"])
+
 
 if __name__ == "__main__":
     unittest.main()

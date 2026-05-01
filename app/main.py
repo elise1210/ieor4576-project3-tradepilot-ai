@@ -61,12 +61,18 @@ DEMO_SKILLS = {
 
 
 def format_pipeline_answer(state: dict) -> str:
+    guardrails = state.get("guardrails", {})
+    if guardrails.get("out_of_scope"):
+        return guardrails.get("message") or "This request is outside the current system scope."
+
     if state.get("needs_human"):
         return state.get("clarification_question") or "More information is needed."
 
     decision = state.get("decision") or {}
     if not decision:
         return "The pipeline did not produce a final decision."
+
+    scope_note = guardrails.get("scope_note")
 
     if decision.get("type") == "comparison":
         lines = [
@@ -85,6 +91,9 @@ def format_pipeline_answer(state: dict) -> str:
         disclaimer = decision.get("disclaimer")
         if disclaimer:
             lines.extend(["", disclaimer])
+
+        if scope_note:
+            lines = [scope_note, ""] + lines
 
         return "\n".join(lines)
 
@@ -106,6 +115,9 @@ def format_pipeline_answer(state: dict) -> str:
     disclaimer = decision.get("disclaimer")
     if disclaimer:
         lines.extend(["", disclaimer])
+
+    if scope_note:
+        lines = [scope_note, ""] + lines
 
     return "\n".join(lines)
 

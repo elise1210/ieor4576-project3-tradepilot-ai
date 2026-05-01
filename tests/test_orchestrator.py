@@ -48,6 +48,14 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(result["metadata"]["iterations_used"], 0)
         self.assertIsNone(result["decision"])
 
+    def test_orchestrator_stops_for_out_of_scope_question(self):
+        result = run_tradepilot_pipeline("What is the weather in New York tomorrow?")
+
+        self.assertTrue(result["guardrails"]["out_of_scope"])
+        self.assertEqual(result["metadata"]["stopped_reason"], "out_of_scope")
+        self.assertEqual(result["metadata"]["iterations_used"], 0)
+        self.assertIsNone(result["decision"])
+
     def test_orchestrator_completes_full_loop_with_realistic_fake_skills(self):
         result = run_tradepilot_pipeline(
             query="Should I buy Apple this week?",

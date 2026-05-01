@@ -30,6 +30,11 @@ def run_tradepilot_pipeline(
     state = build_initial_state(query=query, ticker=ticker)
     state = run_planner_agent(state)
 
+    if state.get("guardrails", {}).get("out_of_scope"):
+        state["metadata"]["stopped_reason"] = "out_of_scope"
+        state["metadata"]["iterations_used"] = 0
+        return state
+
     if state.get("needs_human"):
         state["metadata"]["stopped_reason"] = "human_clarification_required"
         state["metadata"]["iterations_used"] = 0

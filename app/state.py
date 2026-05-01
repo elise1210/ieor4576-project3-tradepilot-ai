@@ -42,6 +42,11 @@ def build_initial_state(query: str, ticker: Optional[str] = None) -> dict:
         "confidence": None,
         "needs_human": False,
         "clarification_question": None,
+        "guardrails": {
+            "out_of_scope": False,
+            "message": None,
+            "scope_note": None,
+        },
         "metadata": {
             "ticker_source": "provided" if clean_ticker else "unknown",
             "ticker_inference_confidence": None,

@@ -38,9 +38,35 @@ EXPLICIT_TICKER_STOPWORDS = {
 COMPARISON_KEYWORDS = ("compare", "versus", "vs", "better than")
 BUY_SELL_KEYWORDS = ("buy", "sell", "hold", "should i buy", "should i sell")
 EXPLANATION_KEYWORDS = ("why", "what happened", "explain", "summarize")
+FINANCE_CONTEXT_KEYWORDS = (
+    "stock",
+    "stocks",
+    "share",
+    "shares",
+    "market",
+    "price",
+    "prices",
+    "ticker",
+    "company",
+    "earnings",
+    "invest",
+    "investment",
+    "portfolio",
+)
 
 SHORT_TERM_MARKERS = ("today", "this week", "this month", "short term", "near term")
 LONG_TERM_MARKERS = ("long term", "next year", "5 years", "multi year", "years")
+FUTURE_SCOPE_LIMITS = {
+    "tomorrow": "day",
+    "this week": "week",
+    "next week": "week",
+    "this month": "month",
+    "next month": "month",
+    "next year": "year",
+    "long term": "long-term horizon",
+    "5 years": "multi-year horizon",
+    "multi year": "multi-year horizon",
+}
 
 EVIDENCE_BY_INTENT = {
     "buy_sell_decision": ["news", "market", "fundamentals", "sentiment"],
@@ -158,6 +184,46 @@ def build_task_plan(intent: str) -> dict:
     }
 
 
+def is_out_of_scope(query: str, tickers: list[str], intent: str) -> bool:
+    text = (query or "").strip().lower()
+
+    if tickers:
+        return False
+    if intent != "general_research":
+        return False
+    if any(keyword in text for keyword in FINANCE_CONTEXT_KEYWORDS):
+        return False
+
+    return True
+
+
+def build_out_of_scope_message() -> str:
+    return (
+        "I can help with informational stock analysis, company comparisons, "
+        "and daily buy/hold/sell-style signals based on the latest available data."
+    )
+
+
+def build_scope_note(query: str, intent: str) -> Optional[str]:
+    if intent != "buy_sell_decision":
+        return None
+
+    text = (query or "").strip().lower()
+    for marker, label in FUTURE_SCOPE_LIMITS.items():
+        if marker in text:
+            if label == "day":
+                return (
+                    "I cannot forecast tomorrow in advance. I can provide a daily "
+                    "informational buy/hold/sell signal based on the latest available data."
+                )
+            return (
+                f"I cannot forecast the full {label}. I can provide a daily informational "
+                "buy/hold/sell signal based on the latest available data."
+            )
+
+    return None
+
+
 def build_clarification_question(
     intent: str,
     tickers: list[str],
@@ -188,6 +254,8 @@ def run_planner_agent(state: dict) -> dict:
     time_horizon = infer_time_horizon(query)
     plan = build_task_plan(intent)
     clarification_question = build_clarification_question(intent, tickers, time_horizon)
+    out_of_scope = is_out_of_scope(query, tickers, intent)
+    scope_note = build_scope_note(query, intent)
 
     next_state["intent"] = intent
     next_state["tickers"] = tickers
@@ -195,6 +263,9 @@ def run_planner_agent(state: dict) -> dict:
     next_state["plan"] = plan
     next_state["needs_human"] = clarification_question is not None
     next_state["clarification_question"] = clarification_question
+    next_state["guardrails"]["out_of_scope"] = out_of_scope
+    next_state["guardrails"]["message"] = build_out_of_scope_message() if out_of_scope else None
+    next_state["guardrails"]["scope_note"] = scope_note
     next_state["metadata"]["ticker_source"] = ticker_source
     next_state["metadata"]["ticker_inference_confidence"] = confidence
 
