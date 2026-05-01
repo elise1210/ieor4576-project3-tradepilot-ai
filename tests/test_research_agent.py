@@ -43,6 +43,21 @@ def fake_sentiment_skill(news_result: dict) -> dict:
     }
 
 
+def fake_chart_skill(ticker: str, evidence: dict, query: str) -> dict:
+    return {
+        "ticker": ticker,
+        "kind": "seven_day_price_trend",
+        "source_query": query,
+        "charts": [
+            {
+                "id": f"{ticker.lower()}-price",
+                "type": "line",
+                "data": evidence.get("market", {}).get("history", []),
+            }
+        ],
+    }
+
+
 class ResearchAgentTests(unittest.TestCase):
     def test_research_agent_populates_evidence_with_fake_skills(self):
         state = build_initial_state("Should I buy Apple this week?")
@@ -124,6 +139,34 @@ class ResearchAgentTests(unittest.TestCase):
         self.assertEqual(set(result["evidence"]["sentiment"].keys()), {"NVDA", "AMD"})
         self.assertEqual(result["evidence"]["sentiment"]["NVDA"]["source_ticker"], "NVDA")
         self.assertEqual(result["evidence"]["sentiment"]["AMD"]["source_ticker"], "AMD")
+
+    def test_research_agent_stores_chart_when_required(self):
+        state = build_initial_state("What is AAPL stock price today?")
+        state["tickers"] = ["AAPL"]
+        state["plan"]["required_evidence"] = ["market", "chart"]
+
+        def market_with_history(ticker: str) -> dict:
+            result = fake_market_skill(ticker)
+            result["history"] = [
+                {"date": "2026-04-30", "close": 218.70},
+                {"date": "2026-05-01", "close": 220.00},
+            ]
+            return result
+
+        result = run_research_agent(
+            state,
+            skills={
+                "market": market_with_history,
+                "chart": fake_chart_skill,
+            },
+        )
+
+        self.assertEqual(result["gaps"], [])
+        self.assertEqual(len(result["evidence"]["charts"]), 1)
+        self.assertEqual(
+            result["evidence"]["charts"][0]["source_query"],
+            "What is AAPL stock price today?",
+        )
 
 
 if __name__ == "__main__":

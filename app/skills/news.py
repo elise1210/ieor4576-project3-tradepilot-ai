@@ -1,8 +1,13 @@
+import json
+import os
 import re
+import urllib.error
+import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from collections import Counter
 
-from app.tools.finnhub_tool import finnhub_company_news
+from app.skills.date_utils import parse_user_date
+from app.skills.finnhub_tool import finnhub_company_news, finnhub_company_news_range
 
 
 COMPANY_NAMES = {
@@ -16,6 +21,8 @@ COMPANY_NAMES = {
     "TSLA": "TESLA",
     "AMD": "ADVANCED MICRO DEVICES",
 }
+OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_NEWS_MODEL = os.getenv("OPENAI_NEWS_MODEL", "gpt-4o-mini")
 
 #signal filtering
 STOPWORDS = set("""
@@ -161,17 +168,7 @@ def wants_price_relevant_news(user_query: str) -> bool:
 
 
 def extract_news_date(user_query: str):
-    match = re.search(r"\b(20\d{2})-(\d{2})-(\d{2})\b", user_query or "")
-
-    if not match:
-        return None
-
-    year, month, day = map(int, match.groups())
-
-    try:
-        return date(year, month, day)
-    except ValueError:
-        return None
+    return parse_user_date(user_query or "")
 
 
 def filter_items_to_date(items: list, target_date: date) -> list:
@@ -334,6 +331,215 @@ def summarize_news_paragraph(items: list, ticker: str, user_query: str) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
+def _prepare_articles_for_llm(items: list, max_items: int = 8) -> list[dict]:
+    articles = []
+
+    for item in items[:max_items]:
+        if not isinstance(item, dict) or "error" in item:
+            continue
+
+        timestamp = item.get("datetime")
+        date_str = (
+            datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            if timestamp
+            else item.get("date", "N/A")
+        )
+
+        articles.append({
+            "date": date_str,
+            "headline": fix_mojibake(item.get("headline", ""))[:240],
+            "summary": fix_mojibake(item.get("summary", ""))[:700],
+            "source": item.get("source", ""),
+        })
+
+    return articles
+
+
+def summarize_news_with_openai(
+    items: list,
+    ticker: str,
+    user_query: str,
+    model: str | None = None,
+    timeout: int = 12,
+) -> str | None:
+    """
+    Optional AI news summary.
+
+    Returns None when OPENAI_API_KEY is missing or when the API call fails, so
+    callers can safely fall back to the deterministic rule-based summary.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    articles = _prepare_articles_for_llm(items)
+    if not articles:
+        return None
+
+    payload = {
+        "model": model or os.getenv("OPENAI_NEWS_MODEL", OPENAI_NEWS_MODEL),
+        "temperature": 0.2,
+        "max_tokens": 220,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You summarize company news for an educational finance app. "
+                    "Use only the provided articles. Do not invent facts. "
+                    "Do not predict stock prices or give investment advice. "
+                    "If evidence is thin, say so briefly."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "ticker": ticker,
+                        "user_query": user_query,
+                        "articles": articles,
+                        "task": (
+                            "Write a concise, natural-language summary in 2-4 sentences. "
+                            "Mention the main event and uncertainty if relevant."
+                        ),
+                    },
+                    ensure_ascii=True,
+                ),
+            },
+        ],
+    }
+
+    request = urllib.request.Request(
+        OPENAI_CHAT_COMPLETIONS_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+        data = json.loads(raw)
+        summary = data["choices"][0]["message"]["content"].strip()
+        return summary or None
+    except Exception:
+        return None
+
+
+def summarize_news_with_openai_result(
+    items: list,
+    ticker: str,
+    user_query: str,
+    model: str | None = None,
+    timeout: int = 12,
+) -> dict:
+    """
+    Optional AI news summary with debug metadata.
+
+    This keeps OpenAI failures non-fatal while making the fallback reason
+    visible to the API/frontend.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return {
+            "summary": None,
+            "summary_source": "rule_based",
+            "summary_fallback_used": True,
+            "summary_error": "OPENAI_API_KEY is not configured.",
+        }
+
+    articles = _prepare_articles_for_llm(items)
+    if not articles:
+        return {
+            "summary": None,
+            "summary_source": "rule_based",
+            "summary_fallback_used": True,
+            "summary_error": "No usable articles available for OpenAI summary.",
+        }
+
+    payload = {
+        "model": model or os.getenv("OPENAI_NEWS_MODEL", OPENAI_NEWS_MODEL),
+        "temperature": 0.2,
+        "max_tokens": 220,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You summarize company news for an educational finance app. "
+                    "Use only the provided articles. Do not invent facts. "
+                    "Do not predict stock prices or give investment advice. "
+                    "If evidence is thin, say so briefly."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "ticker": ticker,
+                        "user_query": user_query,
+                        "articles": articles,
+                        "task": (
+                            "Write a concise, natural-language summary in 2-4 sentences. "
+                            "Mention the main event and uncertainty if relevant."
+                        ),
+                    },
+                    ensure_ascii=True,
+                ),
+            },
+        ],
+    }
+
+    request = urllib.request.Request(
+        OPENAI_CHAT_COMPLETIONS_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8")
+        data = json.loads(raw)
+        summary = data["choices"][0]["message"]["content"].strip()
+        if not summary:
+            return {
+                "summary": None,
+                "summary_source": "rule_based",
+                "summary_fallback_used": True,
+                "summary_error": "OpenAI returned an empty summary.",
+            }
+
+        return {
+            "summary": summary,
+            "summary_source": "openai",
+            "summary_fallback_used": False,
+            "summary_error": None,
+        }
+    except urllib.error.HTTPError as e:
+        try:
+            detail = e.read().decode("utf-8")[:400]
+        except Exception:
+            detail = str(e)
+        return {
+            "summary": None,
+            "summary_source": "rule_based",
+            "summary_fallback_used": True,
+            "summary_error": f"OpenAI API HTTP error: {e.code}. {detail}",
+        }
+    except Exception as e:
+        return {
+            "summary": None,
+            "summary_source": "rule_based",
+            "summary_fallback_used": True,
+            "summary_error": f"OpenAI summary failed: {str(e)}",
+        }
+
+
 def format_news_items(items: list) -> list:
     formatted = []
 
@@ -348,6 +554,7 @@ def format_news_items(items: list) -> list:
         formatted.append({
             "date": date_str,
             "headline": fix_mojibake(item.get("headline", "")),
+            "summary": fix_mojibake(item.get("summary", "")),
             "source": item.get("source", ""),
             "url": item.get("url", ""),
         })
@@ -358,8 +565,10 @@ def format_news_items(items: list) -> list:
 def run_news_agent(
     ticker: str,
     user_query: str = "",
+    target_date=None,
     days: int = 7,
     max_items: int = 8,
+    query: str | None = None,
 ) -> dict:
     """
     News Agent for TradePilot AI.
@@ -374,7 +583,10 @@ def run_news_agent(
     """
 
     ticker = ticker.upper().strip()
-    asked_date = extract_news_date(user_query)
+    if query is not None:
+        user_query = query
+
+    asked_date = parse_user_date(str(target_date)) if target_date is not None else extract_news_date(user_query)
 
     if asked_date:
         start_date = asked_date
@@ -388,6 +600,11 @@ def run_news_agent(
     raw_items = finnhub_company_news(
         ticker=ticker,
         days=lookback_days,
+        max_items=30,
+    ) if not asked_date else finnhub_company_news_range(
+        ticker=ticker,
+        start_date=start_date,
+        end_date=end_date,
         max_items=30,
     )
 
@@ -414,18 +631,29 @@ def run_news_agent(
     else:
         selected_items = relevant_items[:max_items]
 
-    summary = summarize_news_paragraph(
+    rule_based_summary = summarize_news_paragraph(
         selected_items,
         ticker=ticker,
         user_query=user_query,
     )
+    ai_summary_result = summarize_news_with_openai_result(
+        selected_items,
+        ticker=ticker,
+        user_query=user_query,
+    )
+    ai_summary = ai_summary_result["summary"]
+    summary = ai_summary or rule_based_summary
 
     return {
         "ticker": ticker,
         "source": "Finnhub company news",
+        "requested_date": str(asked_date) if asked_date else None,
         "start_date": str(start_date),
         "end_date": str(end_date),
         "article_count": len(selected_items),
         "summary": summary,
+        "summary_source": ai_summary_result["summary_source"],
+        "summary_fallback_used": ai_summary_result["summary_fallback_used"],
+        "summary_error": ai_summary_result["summary_error"],
         "items": format_news_items(selected_items),
     }

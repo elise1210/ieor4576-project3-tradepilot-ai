@@ -75,6 +75,21 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["tickers"], ["TSLA"])
         self.assertIn("cannot forecast the full week", result["guardrails"]["scope_note"])
 
+    def test_today_price_query_requests_chart_evidence(self):
+        state = build_initial_state("What is AAPL stock price today?")
+
+        result = run_planner_agent(state)
+
+        self.assertIn("chart", result["plan"]["required_evidence"])
+        self.assertFalse(result["needs_human"])
+
+    def test_future_period_buy_query_does_not_request_chart_evidence(self):
+        state = build_initial_state("Should I buy Apple this week?")
+
+        result = run_planner_agent(state)
+
+        self.assertNotIn("chart", result["plan"]["required_evidence"])
+
 
 if __name__ == "__main__":
     unittest.main()

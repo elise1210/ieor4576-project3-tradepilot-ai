@@ -1,40 +1,40 @@
 import pandas as pd
-import yfinance as yf
+
+from app.skills.yfinance_tool import (
+    fetch_daily_prices,
+    fetch_daily_prices_until,
+)
 
 
-def _normalize_yfinance_df(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Normalize yfinance output.
-    Handles MultiIndex columns sometimes returned by yf.download().
-    """
-    if df is None or df.empty:
-        return pd.DataFrame()
-
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    df = df.copy()
-    df.index = pd.to_datetime(df.index)
-
-    return df
+def _price_history_from_df(df: pd.DataFrame) -> list[dict]:
+    history = []
+    for index, row in df.iterrows():
+        item = {
+            "date": index.date().isoformat(),
+            "close": round(float(row["Close"]), 2),
+        }
+        for source_key, output_key in (
+            ("Open", "open"),
+            ("High", "high"),
+            ("Low", "low"),
+            ("Volume", "volume"),
+        ):
+            if source_key not in row or pd.isna(row[source_key]):
+                continue
+            value = float(row[source_key])
+            item[output_key] = int(value) if output_key == "volume" else round(value, 2)
+        history.append(item)
+    return history
 
 
 def fetch_market_data(ticker: str, period: str = "3mo") -> pd.DataFrame:
     """
     Fetch daily market data from yfinance.
     """
-    df = yf.download(
-        ticker,
-        period=period,
-        interval="1d",
-        auto_adjust=False,
-        progress=False,
-    )
-
-    return _normalize_yfinance_df(df)
+    return fetch_daily_prices(ticker=ticker, period=period)
 
 
-def run_market_agent(ticker: str, days: int = 7) -> dict:
+def run_market_agent(ticker: str, days: int = 7, end_date=None) -> dict:
     """
     Market Agent for TradePilot AI.
 
@@ -51,41 +51,74 @@ def run_market_agent(ticker: str, days: int = 7) -> dict:
     ticker = ticker.upper().strip()
 
     try:
-        df = fetch_market_data(ticker, period="3mo")
+        requested_date = str(end_date) if end_date is not None else None
+        if end_date is not None:
+            history = fetch_daily_prices_until(ticker=ticker, end_date=end_date, days=days)
+            if not history:
+                return {
+                    "ticker": ticker,
+                    "error": "No market data available",
+                    "trend_7d": 0.0,
+                    "trend_label": "sideways",
+                    "volatility": 0.0,
+                    "history": [],
+                    "requested_date": requested_date,
+                    "used_end_date": None,
+                }
 
-        if df.empty or "Close" not in df.columns:
-            return {
-                "ticker": ticker,
-                "error": "No market data available",
-                "trend_7d": 0.0,
-                "trend_label": "sideways",
-                "volatility": 0.0,
-            }
+            current_price = float(history[-1]["close"])
+            start_price = float(history[0]["close"])
+            closes = pd.Series([item["close"] for item in history], dtype=float)
+            returns = closes.pct_change().dropna()
+            trend_7d = current_price / start_price - 1
+            volatility = float(returns.std()) if len(returns) > 1 else 0.0
+            ma20 = None
+            above_ma20 = None
+            used_end_date = history[-1]["date"]
+        else:
+            df = fetch_market_data(ticker, period="3mo")
 
-        df = df.dropna(subset=["Close"]).copy()
+            if df.empty or "Close" not in df.columns:
+                return {
+                    "ticker": ticker,
+                    "error": "No market data available",
+                    "trend_7d": 0.0,
+                    "trend_label": "sideways",
+                    "volatility": 0.0,
+                    "history": [],
+                    "requested_date": None,
+                    "used_end_date": None,
+                }
 
-        if len(df) < 2:
-            return {
-                "ticker": ticker,
-                "error": "Not enough market data",
-                "trend_7d": 0.0,
-                "trend_label": "sideways",
-                "volatility": 0.0,
-            }
+            df = df.dropna(subset=["Close"]).copy()
 
-        # Use latest available trading days
-        recent = df.tail(days)
+            if len(df) < 2:
+                return {
+                    "ticker": ticker,
+                    "error": "Not enough market data",
+                    "trend_7d": 0.0,
+                    "trend_label": "sideways",
+                    "volatility": 0.0,
+                    "history": [],
+                    "requested_date": None,
+                    "used_end_date": None,
+                }
 
-        start_price = float(recent["Close"].iloc[0])
-        end_price = float(recent["Close"].iloc[-1])
+            # Use latest available trading days
+            recent = df.tail(days)
 
-        trend_7d = end_price / start_price - 1
+            start_price = float(recent["Close"].iloc[0])
+            current_price = float(recent["Close"].iloc[-1])
+            history = _price_history_from_df(recent)
+            used_end_date = history[-1]["date"] if history else None
 
-        returns = recent["Close"].pct_change().dropna()
-        volatility = float(returns.std()) if len(returns) > 1 else 0.0
+            trend_7d = current_price / start_price - 1
 
-        ma20 = float(df["Close"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else None
-        current_price = end_price
+            returns = recent["Close"].pct_change().dropna()
+            volatility = float(returns.std()) if len(returns) > 1 else 0.0
+
+            ma20 = float(df["Close"].rolling(20).mean().iloc[-1]) if len(df) >= 20 else None
+            above_ma20 = current_price > ma20 if ma20 is not None else None
 
         if trend_7d > 0.02:
             trend_label = "upward"
@@ -93,10 +126,6 @@ def run_market_agent(ticker: str, days: int = 7) -> dict:
             trend_label = "downward"
         else:
             trend_label = "sideways"
-
-        above_ma20 = None
-        if ma20 is not None:
-            above_ma20 = current_price > ma20
 
         return {
             "ticker": ticker,
@@ -107,6 +136,11 @@ def run_market_agent(ticker: str, days: int = 7) -> dict:
             "volatility": volatility,
             "ma20": round(ma20, 2) if ma20 is not None else None,
             "above_ma20": above_ma20,
+            "history": history,
+            "requested_date": requested_date,
+            "used_end_date": used_end_date,
+            "start_date": history[0]["date"] if history else None,
+            "end_date": history[-1]["date"] if history else None,
             "note": (
                 "Market Agent uses recent historical price behavior only. "
                 "It does not forecast future stock prices."
@@ -120,6 +154,9 @@ def run_market_agent(ticker: str, days: int = 7) -> dict:
             "trend_7d": 0.0,
             "trend_label": "sideways",
             "volatility": 0.0,
+            "history": [],
+            "requested_date": str(end_date) if end_date is not None else None,
+            "used_end_date": None,
         }
 
 

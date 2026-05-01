@@ -101,7 +101,10 @@ These are the main reusable modules in the system.
 
 - `news`
   - filters noisy articles, keeps company-relevant news, ranks price-relevant items, and summarizes the coverage
+  - optional AI summary: the skill first builds a deterministic rule-based summary from Finnhub articles; if `OPENAI_API_KEY` is configured, it attempts a more natural OpenAI-generated summary
+  - if the OpenAI call fails because of missing quota, missing key, network issues, or model access, the system automatically falls back to the rule-based summary so the project remains runnable without OpenAI credentials
   - this is an analysis skill
+  
 
 - `fundamentals`
   - turns raw company profile and financial fields into usable company context

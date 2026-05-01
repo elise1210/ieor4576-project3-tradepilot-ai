@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 import numpy as np
 from transformers import pipeline
 
+from app.skills.news import run_news_agent
+
 
 _finbert = None
 
@@ -22,9 +24,16 @@ def get_finbert():
 
 def analyze_news_sentiment(news_result: dict) -> dict:
     items = news_result.get("items", []) if news_result else []
+    metadata = {
+        "ticker": news_result.get("ticker") if news_result else None,
+        "requested_date": news_result.get("requested_date") if news_result else None,
+        "start_date": news_result.get("start_date") if news_result else None,
+        "end_date": news_result.get("end_date") if news_result else None,
+    }
 
     if not items:
         return {
+            **metadata,
             "sentiment": "neutral",
             "score": 0.0,
             "dispersion": 0.0,
@@ -35,7 +44,24 @@ def analyze_news_sentiment(news_result: dict) -> dict:
             "summary": "No recent news available for sentiment analysis.",
         }
 
-    finbert = get_finbert()
+    try:
+        finbert = get_finbert()
+    except Exception as e:
+        return {
+            **metadata,
+            "sentiment": "neutral",
+            "score": 0.0,
+            "dispersion": 0.0,
+            "positive_count": 0,
+            "negative_count": 0,
+            "neutral_count": len(items),
+            "article_count": len(items),
+            "summary": (
+                "Sentiment model unavailable; returning neutral fallback. "
+                f"Error: {str(e)}"
+            ),
+            "model_available": False,
+        }
 
     scores = []
     weights = []
@@ -80,6 +106,7 @@ def analyze_news_sentiment(news_result: dict) -> dict:
 
     if not scores:
         return {
+            **metadata,
             "sentiment": "neutral",
             "score": 0.0,
             "dispersion": 0.0,
@@ -116,6 +143,7 @@ def analyze_news_sentiment(news_result: dict) -> dict:
     )
 
     return {
+        **metadata,
         "sentiment": sentiment,
         "score": avg,
         "dispersion": dispersion,
@@ -124,7 +152,45 @@ def analyze_news_sentiment(news_result: dict) -> dict:
         "neutral_count": neutral_count,
         "article_count": int(len(scores)),
         "summary": summary,
+        "model_available": True,
     }
+
+
+def run_sentiment_agent(
+    ticker: str | None = None,
+    news_result: dict | None = None,
+    user_query: str = "",
+    target_date=None,
+    max_items: int = 8,
+    query: str | None = None,
+) -> dict:
+    """
+    Sentiment skill entry point.
+
+    If news_result is provided, score that news directly. Otherwise fetch
+    company news for ticker/query/target_date first, then score the result.
+    """
+    if query is not None:
+        user_query = query
+
+    if news_result is None:
+        if not ticker:
+            return {
+                "error": "ticker or news_result is required for sentiment analysis",
+                "sentiment": "neutral",
+                "score": 0.0,
+                "dispersion": 0.0,
+                "article_count": 0,
+            }
+
+        news_result = run_news_agent(
+            ticker=ticker,
+            user_query=user_query,
+            target_date=target_date,
+            max_items=max_items,
+        )
+
+    return analyze_news_sentiment(news_result)
 
 
 def format_sentiment_output(sentiment_result: dict) -> str:

@@ -1,6 +1,7 @@
 import re
 from typing import Optional, Tuple
 
+from app.skills.chart import should_show_chart_for_query
 from app.state import clone_state
 
 
@@ -176,8 +177,11 @@ def infer_tickers(
     return [], "unknown", None
 
 
-def build_task_plan(intent: str) -> dict:
-    required = EVIDENCE_BY_INTENT.get(intent, ["news", "market", "fundamentals"])
+def build_task_plan(intent: str, query: str = "") -> dict:
+    required = list(EVIDENCE_BY_INTENT.get(intent, ["news", "market", "fundamentals"]))
+    if should_show_chart_for_query(query) and "chart" not in required:
+        required.append("chart")
+
     return {
         "required_evidence": required,
         "max_iterations": 2,
@@ -252,7 +256,7 @@ def run_planner_agent(state: dict) -> dict:
     intent = classify_intent(query)
     tickers, ticker_source, confidence = infer_tickers(query, provided_ticker)
     time_horizon = infer_time_horizon(query)
-    plan = build_task_plan(intent)
+    plan = build_task_plan(intent, query=query)
     clarification_question = build_clarification_question(intent, tickers, time_horizon)
     out_of_scope = is_out_of_scope(query, tickers, intent)
     scope_note = build_scope_note(query, intent)

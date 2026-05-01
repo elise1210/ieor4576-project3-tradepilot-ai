@@ -60,8 +60,11 @@ def _run_sentiment_skill(skill: Callable, news_result: dict) -> dict:
     return skill(news_result=news_result)
 
 
-def _run_chart_skill(skill: Callable, ticker: str, ticker_evidence: dict) -> dict:
-    return skill(ticker=ticker, evidence=ticker_evidence)
+def _run_chart_skill(skill: Callable, ticker: str, ticker_evidence: dict, query: str) -> dict:
+    try:
+        return skill(ticker=ticker, evidence=ticker_evidence, query=query)
+    except TypeError:
+        return skill(ticker=ticker, evidence=ticker_evidence)
 
 
 def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> dict:
@@ -149,7 +152,7 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
             if chart_skill is None:
                 _set_gap(next_state, f"missing_skill:chart:{ticker}")
             else:
-                chart_result = _run_chart_skill(chart_skill, ticker, ticker_bundle)
+                chart_result = _run_chart_skill(chart_skill, ticker, ticker_bundle, query)
                 if _empty_evidence_result(chart_result):
                     _set_gap(next_state, f"missing_evidence:chart:{ticker}")
                 else:
