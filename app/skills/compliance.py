@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Any
+from typing import Any, Dict, Optional, Union
 
 
 DEFAULT_DISCLAIMER = (
@@ -60,20 +60,20 @@ def _has_unsafe_language(payload: Any) -> bool:
     return any(phrase in text for phrase in UNSAFE_PHRASES)
 
 
-def _confidence_value(payload: dict, state: dict | None = None) -> str:
+def _confidence_value(payload: dict, state: Optional[dict] = None) -> str:
     confidence = payload.get("confidence")
     if confidence is None and state:
         confidence = state.get("confidence")
     return str(confidence or "").strip().lower()
 
 
-def _critic_conflicts(state: dict | None = None) -> list:
+def _critic_conflicts(state: Optional[dict] = None) -> list:
     if not state:
         return []
     return list(state.get("critic_result", {}).get("conflicts", []))
 
 
-def _choose_disclaimer(payload: dict, state: dict | None = None) -> str:
+def _choose_disclaimer(payload: dict, state: Optional[dict] = None) -> str:
     existing = payload.get("disclaimer")
     if existing:
         return existing
@@ -93,7 +93,7 @@ def _choose_disclaimer(payload: dict, state: dict | None = None) -> str:
     return DEFAULT_DISCLAIMER
 
 
-def _build_uncertainty_notes(payload: dict, state: dict | None = None) -> list[str]:
+def _build_uncertainty_notes(payload: dict, state: Optional[dict] = None) -> list[str]:
     notes = []
     confidence = _confidence_value(payload, state)
 
@@ -116,8 +116,8 @@ def _build_uncertainty_notes(payload: dict, state: dict | None = None) -> list[s
 
 
 def apply_compliance(
-    response: dict | str,
-    state: dict | None = None,
+    response: Union[Dict, str],
+    state: Optional[dict] = None,
 ) -> dict:
     """
     Add safer wording, uncertainty language, and disclaimer metadata.
@@ -142,11 +142,11 @@ def apply_compliance(
     return payload
 
 
-def run_compliance_skill(response: dict | str, state: dict | None = None) -> dict:
+def run_compliance_skill(response: Union[Dict, str], state: Optional[dict] = None) -> dict:
     return apply_compliance(response=response, state=state)
 
 
-def add_disclaimer(response: dict | str, state: dict | None = None) -> dict:
+def add_disclaimer(response: Union[Dict, str], state: Optional[dict] = None) -> dict:
     return apply_compliance(response=response, state=state)
 
 
