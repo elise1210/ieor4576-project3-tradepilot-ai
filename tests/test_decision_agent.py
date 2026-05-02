@@ -55,6 +55,25 @@ class DecisionAgentTests(unittest.TestCase):
         self.assertIn("comparison_summary", result["decision"])
         self.assertEqual(result["decision"]["confidence"], "Medium")
 
+    def test_decision_agent_adds_caution_when_supporting_evidence_missing(self):
+        state = build_single_decision_state()
+        state["critic_result"] = {
+            "supporting_missing": ["fundamentals:AAPL"],
+            "conflicts": [],
+        }
+
+        result = run_decision_agent(state)
+
+        self.assertEqual(result["decision"]["confidence"], "Low")
+        self.assertIn(
+            "Some supporting evidence was unavailable: fundamentals.",
+            result["decision"]["reasoning"],
+        )
+        self.assertEqual(
+            result["decision"]["evidence_status"]["supporting_missing"],
+            ["fundamentals"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

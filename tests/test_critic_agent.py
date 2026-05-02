@@ -33,9 +33,21 @@ class CriticAgentTests(unittest.TestCase):
 
         result = run_critic_agent(state)
 
-        self.assertFalse(result["critic_result"]["enough_evidence"])
+        self.assertTrue(result["critic_result"]["enough_evidence"])
         self.assertIn("fundamentals:AAPL", result["critic_result"]["missing"])
+        self.assertEqual(result["critic_result"]["blocking_missing"], [])
+        self.assertIn("fundamentals:AAPL", result["critic_result"]["supporting_missing"])
         self.assertIn("collect_fundamentals:AAPL", result["critic_result"]["follow_up_tasks"])
+        self.assertEqual(result["critic_result"]["confidence"], "Medium")
+
+    def test_critic_blocks_single_ticker_when_market_missing(self):
+        state = build_complete_state_single()
+        state["evidence"]["market"]["AAPL"] = {}
+
+        result = run_critic_agent(state)
+
+        self.assertFalse(result["critic_result"]["enough_evidence"])
+        self.assertIn("market:AAPL", result["critic_result"]["blocking_missing"])
         self.assertEqual(result["critic_result"]["confidence"], "Low")
 
     def test_critic_flags_comparison_fairness_issue(self):

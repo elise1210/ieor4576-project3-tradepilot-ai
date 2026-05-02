@@ -1,7 +1,9 @@
+import os
 from datetime import date, datetime, timedelta
 from typing import Iterable, Optional, Union
 
 import pandas as pd
+from dotenv import load_dotenv
 try:
     import yfinance as yf
 except ImportError:  # pragma: no cover - environment-dependent dependency
@@ -15,6 +17,43 @@ except ImportError:  # pragma: no cover - environment-dependent dependency
     yf = _MissingYFinance()
 
 from app.skills.date_utils import parse_user_date
+
+load_dotenv()
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DEFAULT_YFINANCE_CACHE_DIR = os.path.join(PROJECT_ROOT, ".cache", "py-yfinance-cache")
+
+
+def _configure_yfinance_cache() -> None:
+    """
+    Point yfinance's local SQLite cache to a writable location.
+
+    On some Windows setups, the default AppData cache path can be blocked or
+    locked, which causes errors like "unable to open database file". We allow
+    an override through YFINANCE_CACHE_DIR and otherwise fall back to C:\\tmp.
+    """
+    if not hasattr(yf, "__dict__"):
+        return
+
+    cache_dir = os.getenv("YFINANCE_CACHE_DIR", DEFAULT_YFINANCE_CACHE_DIR)
+
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+    except Exception:
+        return
+
+    try:
+        import yfinance.cache as yf_cache
+
+        if hasattr(yf_cache, "set_cache_location"):
+            yf_cache.set_cache_location(cache_dir)
+        if hasattr(yf_cache, "set_tz_cache_location"):
+            yf_cache.set_tz_cache_location(cache_dir)
+    except Exception:
+        return
+
+
+_configure_yfinance_cache()
 
 
 def normalize_reference_date(value: Optional[Union[date, datetime, str]] = None) -> date:

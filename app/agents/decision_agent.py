@@ -84,6 +84,15 @@ def _confidence_label(abs_score: float, risk: str) -> str:
     return "Low"
 
 
+def _downgrade_confidence(label: str, steps: int = 1) -> str:
+    order = ["Low", "Medium", "High"]
+    if label not in order:
+        return label
+    index = order.index(label)
+    downgraded = max(0, index - max(0, steps))
+    return order[downgraded]
+
+
 def generate_decision(
     ticker: str,
     news_result: dict,
@@ -202,6 +211,50 @@ def _extract_ticker_evidence(state: dict, evidence_type: str, ticker: str) -> di
     return state.get("evidence", {}).get(evidence_type, {}).get(ticker, {})
 
 
+def _critic_items_for_ticker(state: dict, field: str, ticker: str) -> list[str]:
+    items = state.get("critic_result", {}).get(field, []) or []
+    suffix = f":{ticker}"
+    output = []
+    for item in items:
+        if item.endswith(suffix):
+            output.append(item.split(":", 1)[0])
+    return output
+
+
+def _augment_decision_with_critic_feedback(state: dict, ticker: str, decision: dict) -> dict:
+    supporting_missing = sorted(set(_critic_items_for_ticker(state, "supporting_missing", ticker)))
+    conflicts = sorted(set(_critic_items_for_ticker(state, "conflicts", ticker)))
+
+    downgrade_steps = 0
+
+    if supporting_missing:
+        decision["reasoning"].append(
+            "Some supporting evidence was unavailable: "
+            + ", ".join(supporting_missing)
+            + "."
+        )
+        downgrade_steps += 1
+
+    if conflicts:
+        decision["reasoning"].append(
+            "Some evidence is mixed or conflicting, so this signal should be interpreted cautiously."
+        )
+        downgrade_steps += 1
+
+    if downgrade_steps:
+        decision["confidence"] = _downgrade_confidence(
+            decision.get("confidence", "Medium"),
+            steps=downgrade_steps,
+        )
+
+    decision["evidence_status"] = {
+        "supporting_missing": supporting_missing,
+        "conflicts": conflicts,
+    }
+
+    return decision
+
+
 def _comparison_summary(decisions: dict) -> str:
     ordered = sorted(
         decisions.values(),
@@ -242,6 +295,7 @@ def run_decision_agent(state: dict) -> dict:
             market_result=_extract_ticker_evidence(next_state, "market", ticker),
             company_result=_extract_ticker_evidence(next_state, "fundamentals", ticker),
         )
+        decision = _augment_decision_with_critic_feedback(next_state, ticker, decision)
         decisions[ticker] = decision
 
     if len(tickers) == 1:

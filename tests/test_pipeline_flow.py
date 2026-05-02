@@ -52,21 +52,23 @@ class PipelineFlowTests(unittest.TestCase):
         self.assertEqual(state["tickers"], ["AAPL"])
         self.assertFalse(state["needs_human"])
 
-        # Step 2: First research pass runs without fundamentals.
+        # Step 2: First research pass runs without market/fundamentals.
         state = run_research_agent(
             state,
             skills={
                 "news": fake_news_skill,
-                "market": fake_market_skill,
                 "sentiment": fake_sentiment_skill,
             },
         )
+        self.assertIn("missing_skill:market:AAPL", state["gaps"])
         self.assertIn("missing_skill:fundamentals:AAPL", state["gaps"])
 
-        # Step 3: Critic catches the missing evidence and requests follow-up work.
+        # Step 3: Critic catches the blocking missing evidence and requests follow-up work.
         state = run_critic_agent(state)
         self.assertFalse(state["critic_result"]["enough_evidence"])
+        self.assertIn("market:AAPL", state["critic_result"]["blocking_missing"])
         self.assertIn("fundamentals:AAPL", state["critic_result"]["missing"])
+        self.assertIn("collect_market:AAPL", state["critic_result"]["follow_up_tasks"])
         self.assertIn(
             "collect_fundamentals:AAPL",
             state["critic_result"]["follow_up_tasks"],

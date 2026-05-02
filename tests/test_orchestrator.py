@@ -79,7 +79,6 @@ class OrchestratorTests(unittest.TestCase):
             query="Should I buy Apple this week?",
             skills={
                 "news": fake_news_skill,
-                "market": fake_market_skill,
                 "sentiment": fake_sentiment_skill,
             },
             max_iterations=2,

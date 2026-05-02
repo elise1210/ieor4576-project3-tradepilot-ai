@@ -15,8 +15,12 @@ def _required_evidence(state: dict) -> list[str]:
     return list(state.get("plan", {}).get("required_evidence", []))
 
 
+def _required_without_chart(state: dict) -> list[str]:
+    return [item for item in _required_evidence(state) if item != "chart"]
+
+
 def _missing_evidence_items(state: dict) -> list[str]:
-    required = _required_evidence(state)
+    required = _required_without_chart(state)
     tickers = list(state.get("tickers", []))
     evidence = state.get("evidence", {})
     missing = []
@@ -32,9 +36,86 @@ def _missing_evidence_items(state: dict) -> list[str]:
     return missing
 
 
+def _usable_for(state: dict, evidence_type: str, ticker: str) -> bool:
+    payload = state.get("evidence", {}).get(evidence_type, {}).get(ticker, {})
+    return _has_usable_payload(payload)
+
+
+def _single_ticker_missing_breakdown(state: dict) -> tuple[list[str], list[str]]:
+    tickers = list(state.get("tickers", []))
+    if not tickers:
+        return [], []
+
+    ticker = tickers[0]
+    blocking_missing = []
+    supporting_missing = []
+
+    has_market = _usable_for(state, "market", ticker)
+    has_news = _usable_for(state, "news", ticker)
+    has_sentiment = _usable_for(state, "sentiment", ticker)
+    has_fundamentals = _usable_for(state, "fundamentals", ticker)
+
+    if not has_market:
+        blocking_missing.append(f"market:{ticker}")
+
+    if not (has_news or has_sentiment):
+        if not has_news:
+            blocking_missing.append(f"news:{ticker}")
+        if not has_sentiment:
+            blocking_missing.append(f"sentiment:{ticker}")
+    else:
+        if not has_news:
+            supporting_missing.append(f"news:{ticker}")
+        if not has_sentiment:
+            supporting_missing.append(f"sentiment:{ticker}")
+
+    if not has_fundamentals:
+        supporting_missing.append(f"fundamentals:{ticker}")
+
+    return blocking_missing, supporting_missing
+
+
+def _comparison_missing_breakdown(state: dict) -> tuple[list[str], list[str]]:
+    tickers = list(state.get("tickers", []))
+    blocking_missing = []
+    supporting_missing = []
+
+    for ticker in tickers:
+        has_market = _usable_for(state, "market", ticker)
+        has_news = _usable_for(state, "news", ticker)
+        has_sentiment = _usable_for(state, "sentiment", ticker)
+        has_fundamentals = _usable_for(state, "fundamentals", ticker)
+
+        if not has_market:
+            blocking_missing.append(f"market:{ticker}")
+
+        if not (has_news or has_sentiment):
+            if not has_news:
+                blocking_missing.append(f"news:{ticker}")
+            if not has_sentiment:
+                blocking_missing.append(f"sentiment:{ticker}")
+        else:
+            if not has_news:
+                supporting_missing.append(f"news:{ticker}")
+            if not has_sentiment:
+                supporting_missing.append(f"sentiment:{ticker}")
+
+        if not has_fundamentals:
+            supporting_missing.append(f"fundamentals:{ticker}")
+
+    return blocking_missing, supporting_missing
+
+
+def _missing_breakdown(state: dict) -> tuple[list[str], list[str]]:
+    tickers = list(state.get("tickers", []))
+    if len(tickers) <= 1:
+        return _single_ticker_missing_breakdown(state)
+    return _comparison_missing_breakdown(state)
+
+
 def _comparison_fairness_issues(state: dict) -> list[str]:
     tickers = list(state.get("tickers", []))
-    required = [item for item in _required_evidence(state) if item != "chart"]
+    required = _required_without_chart(state)
     if len(tickers) < 2:
         return []
 
@@ -84,10 +165,16 @@ def _follow_up_tasks(state: dict, missing: list[str], fairness_issues: list[str]
     return tasks
 
 
-def _confidence_label(enough_evidence: bool, missing: list[str], fairness_issues: list[str], conflicts: list[str]) -> str:
-    if not enough_evidence or missing:
+def _confidence_label(
+    enough_evidence: bool,
+    blocking_missing: list[str],
+    supporting_missing: list[str],
+    fairness_issues: list[str],
+    conflicts: list[str],
+) -> str:
+    if not enough_evidence or blocking_missing or fairness_issues:
         return "Low"
-    if fairness_issues or conflicts:
+    if supporting_missing or conflicts:
         return "Medium"
     return "High"
 
@@ -107,17 +194,26 @@ def run_critic_agent(state: dict) -> dict:
         next_state["confidence"] = "Low"
         return next_state
 
-    missing = _missing_evidence_items(next_state)
+    blocking_missing, supporting_missing = _missing_breakdown(next_state)
+    missing = sorted(set(blocking_missing + supporting_missing))
     fairness_issues = _comparison_fairness_issues(next_state)
     conflicts = _conflict_flags(next_state)
 
-    enough_evidence = not missing and not fairness_issues and bool(next_state.get("tickers"))
+    enough_evidence = not blocking_missing and not fairness_issues and bool(next_state.get("tickers"))
     follow_up_tasks = _follow_up_tasks(next_state, missing, fairness_issues)
-    confidence = _confidence_label(enough_evidence, missing, fairness_issues, conflicts)
+    confidence = _confidence_label(
+        enough_evidence,
+        blocking_missing,
+        supporting_missing,
+        fairness_issues,
+        conflicts,
+    )
 
     next_state["critic_result"] = {
         "enough_evidence": enough_evidence,
         "missing": missing,
+        "blocking_missing": blocking_missing,
+        "supporting_missing": supporting_missing,
         "fairness_issues": fairness_issues,
         "conflicts": conflicts,
         "follow_up_tasks": follow_up_tasks,
