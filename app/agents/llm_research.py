@@ -6,6 +6,11 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+from app.prompts.research_prompt import (
+    build_research_system_prompt,
+    build_research_user_instructions,
+)
+
 
 load_dotenv()
 
@@ -134,16 +139,7 @@ def run_llm_research_planner(
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You plan data collection steps for a stock-analysis app. "
-                    "Return JSON only. "
-                    "Do not answer the user query. "
-                    "You may use only these skills: news, market, fundamentals, sentiment, chart. "
-                    "sentiment depends_on news. chart depends_on market. "
-                    "Return fields: steps, reasoning_brief. "
-                    "Each step must contain: skill, ticker, params. "
-                    "Allowed params: days, lookback_days, target_date, requested_date, max_items."
-                ),
+                "content": build_research_system_prompt(),
             },
             {
                 "role": "user",
@@ -160,12 +156,7 @@ def run_llm_research_planner(
                         },
                         "gaps": state.get("gaps", []),
                         "critic_result": state.get("critic_result", {}),
-                        "instructions": [
-                            "Prefer the minimum useful step set.",
-                            "If evidence is missing from a prior pass, you may widen the lookback window.",
-                            "For latest or today-style queries, keep windows short unless the evidence is thin.",
-                            "For explanation or trend questions, include market and news when useful.",
-                        ],
+                        "instructions": build_research_user_instructions(),
                     },
                     ensure_ascii=True,
                 ),
