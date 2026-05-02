@@ -54,6 +54,21 @@ class MarketSkillTests(unittest.TestCase):
         self.assertEqual(len(result["history"]), 3)
         self.assertEqual(result["history"][0]["date"], "2026-04-29")
 
+    @patch("app.skills.yfinance_tool.yf.download")
+    def test_market_skill_accepts_llm_friendly_parameter_names(self, mock_download):
+        mock_download.return_value = build_market_df()
+
+        result = run_market_skill(
+            "AAPL",
+            lookback_days=3,
+            requested_date="2026-05-01",
+        )
+
+        self.assertEqual(result["requested_date"], "2026-05-01")
+        self.assertEqual(result["used_end_date"], "2026-05-01")
+        self.assertEqual(len(result["history"]), 3)
+        self.assertEqual(result["history"][0]["date"], "2026-04-29")
+
 
 if __name__ == "__main__":
     unittest.main()

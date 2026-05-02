@@ -34,7 +34,13 @@ def fetch_market_data(ticker: str, period: str = "3mo") -> pd.DataFrame:
     return fetch_daily_prices(ticker=ticker, period=period)
 
 
-def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
+def run_market_skill(
+    ticker: str,
+    lookback_days: int = 7,
+    requested_date=None,
+    days: int = None,
+    end_date=None,
+) -> dict:
     """
     Market skill for TradePilot AI.
 
@@ -49,11 +55,19 @@ def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
     """
 
     ticker = ticker.upper().strip()
+    if days is not None:
+        lookback_days = days
+    if end_date is not None:
+        requested_date = end_date
 
     try:
-        requested_date = str(end_date) if end_date is not None else None
-        if end_date is not None:
-            history = fetch_daily_prices_until(ticker=ticker, end_date=end_date, days=days)
+        requested_date_str = str(requested_date) if requested_date is not None else None
+        if requested_date is not None:
+            history = fetch_daily_prices_until(
+                ticker=ticker,
+                end_date=requested_date,
+                days=lookback_days,
+            )
             if not history:
                 return {
                     "ticker": ticker,
@@ -62,7 +76,7 @@ def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
                     "trend_label": "sideways",
                     "volatility": 0.0,
                     "history": [],
-                    "requested_date": requested_date,
+                    "requested_date": requested_date_str,
                     "used_end_date": None,
                 }
 
@@ -105,7 +119,7 @@ def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
                 }
 
             # Use latest available trading days
-            recent = df.tail(days)
+            recent = df.tail(lookback_days)
 
             start_price = float(recent["Close"].iloc[0])
             current_price = float(recent["Close"].iloc[-1])
@@ -137,7 +151,7 @@ def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
             "ma20": round(ma20, 2) if ma20 is not None else None,
             "above_ma20": above_ma20,
             "history": history,
-            "requested_date": requested_date,
+            "requested_date": requested_date_str,
             "used_end_date": used_end_date,
             "start_date": history[0]["date"] if history else None,
             "end_date": history[-1]["date"] if history else None,
@@ -155,7 +169,7 @@ def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
             "trend_label": "sideways",
             "volatility": 0.0,
             "history": [],
-            "requested_date": str(end_date) if end_date is not None else None,
+            "requested_date": str(requested_date) if requested_date is not None else None,
             "used_end_date": None,
         }
 

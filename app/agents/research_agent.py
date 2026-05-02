@@ -1,10 +1,18 @@
+import os
 from typing import Callable, Dict, Optional
 
+from dotenv import load_dotenv
+
+from app.agents.llm_research import run_llm_research_planner
 from app.state import clone_state
+
+
+load_dotenv()
 
 
 SkillRegistry = Dict[str, Callable]
 EVIDENCE_KEYS = ("news", "market", "fundamentals", "sentiment", "charts")
+PRIMARY_EVIDENCE_KEYS = {"news", "market", "fundamentals", "sentiment"}
 
 
 def _empty_evidence_result(result: object) -> bool:
@@ -56,36 +64,201 @@ def _get_required_evidence(state: dict) -> list[str]:
     return list(state.get("plan", {}).get("required_evidence", []))
 
 
-def _run_news_skill(skill: Callable, ticker: str, query: str) -> dict:
-    return skill(ticker=ticker, query=query)
+def _run_news_skill(skill: Callable, ticker: str, query: str, params: Optional[dict] = None) -> dict:
+    params = params or {}
+    call_args = {"ticker": ticker, "query": query}
+    if "days" in params:
+        call_args["days"] = params["days"]
+    if "max_items" in params:
+        call_args["max_items"] = params["max_items"]
+    if "target_date" in params:
+        call_args["target_date"] = params["target_date"]
+    return skill(**call_args)
 
 
-def _run_market_skill(skill: Callable, ticker: str) -> dict:
+def _run_market_skill(skill: Callable, ticker: str, params: Optional[dict] = None) -> dict:
+    params = params or {}
+    call_args = {"ticker": ticker}
+    if "lookback_days" in params:
+        call_args["lookback_days"] = params["lookback_days"]
+    elif "days" in params:
+        call_args["lookback_days"] = params["days"]
+    if "requested_date" in params:
+        call_args["requested_date"] = params["requested_date"]
+    elif "target_date" in params:
+        call_args["requested_date"] = params["target_date"]
+    return skill(**call_args)
+
+
+def _run_fundamentals_skill(skill: Callable, ticker: str, params: Optional[dict] = None) -> dict:
+    _ = params
     return skill(ticker=ticker)
 
 
-def _run_fundamentals_skill(skill: Callable, ticker: str) -> dict:
-    return skill(ticker=ticker)
-
-
-def _run_sentiment_skill(skill: Callable, news_result: dict) -> dict:
+def _run_sentiment_skill(skill: Callable, news_result: dict, params: Optional[dict] = None) -> dict:
+    _ = params
     return skill(news_result=news_result)
 
 
-def _run_chart_skill(skill: Callable, ticker: str, ticker_evidence: dict, query: str) -> dict:
+def _run_chart_skill(
+    skill: Callable,
+    ticker: str,
+    ticker_evidence: dict,
+    query: str,
+    params: Optional[dict] = None,
+) -> dict:
+    params = params or {}
+    call_args = {
+        "ticker": ticker,
+        "evidence": ticker_evidence,
+        "query": query,
+    }
+    if "requested_date" in params:
+        call_args["reference_date"] = params["requested_date"]
+    elif "target_date" in params:
+        call_args["reference_date"] = params["target_date"]
+
     try:
-        return skill(ticker=ticker, evidence=ticker_evidence, query=query)
+        return skill(**call_args)
     except TypeError:
-        return skill(ticker=ticker, evidence=ticker_evidence)
+        call_args.pop("reference_date", None)
+        return skill(**call_args)
+
+
+def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, step: dict) -> None:
+    skill_name = step["skill"]
+    ticker = step["ticker"]
+    params = step.get("params", {})
+
+    if skill_name == "news":
+        skill = registry.get("news")
+        if skill is None:
+            _set_gap(next_state, f"missing_skill:news:{ticker}")
+            return
+        result = _run_news_skill(skill, ticker, query, params=params)
+        if _empty_evidence_result(result):
+            _set_gap(next_state, f"missing_evidence:news:{ticker}")
+            return
+        _store_ticker_evidence(next_state, "news", ticker, result)
+        return
+
+    if skill_name == "market":
+        skill = registry.get("market")
+        if skill is None:
+            _set_gap(next_state, f"missing_skill:market:{ticker}")
+            return
+        result = _run_market_skill(skill, ticker, params=params)
+        if _empty_evidence_result(result):
+            _set_gap(next_state, f"missing_evidence:market:{ticker}")
+            return
+        _store_ticker_evidence(next_state, "market", ticker, result)
+        return
+
+    if skill_name == "fundamentals":
+        skill = registry.get("fundamentals")
+        if skill is None:
+            _set_gap(next_state, f"missing_skill:fundamentals:{ticker}")
+            return
+        result = _run_fundamentals_skill(skill, ticker, params=params)
+        if _empty_evidence_result(result):
+            _set_gap(next_state, f"missing_evidence:fundamentals:{ticker}")
+            return
+        _store_ticker_evidence(next_state, "fundamentals", ticker, result)
+        return
+
+    if skill_name == "sentiment":
+        skill = registry.get("sentiment")
+        news_result = next_state["evidence"].get("news", {}).get(ticker, {})
+        if skill is None:
+            _set_gap(next_state, f"missing_skill:sentiment:{ticker}")
+            return
+        if _empty_evidence_result(news_result):
+            _set_gap(next_state, f"missing_dependency:news_for_sentiment:{ticker}")
+            return
+        result = _run_sentiment_skill(skill, news_result, params=params)
+        if _empty_evidence_result(result):
+            _set_gap(next_state, f"missing_evidence:sentiment:{ticker}")
+            return
+        _store_ticker_evidence(next_state, "sentiment", ticker, result)
+        return
+
+    if skill_name == "chart":
+        skill = registry.get("chart")
+        if skill is None:
+            _set_gap(next_state, f"missing_skill:chart:{ticker}")
+            return
+        ticker_bundle = _build_ticker_evidence_bundle(next_state, ticker)
+        result = _run_chart_skill(skill, ticker, ticker_bundle, query, params=params)
+        if _empty_evidence_result(result):
+            _set_gap(next_state, f"missing_evidence:chart:{ticker}")
+            return
+        next_state["evidence"]["charts"].append(result)
+
+
+def _build_default_research_steps(state: dict) -> list[dict]:
+    steps = []
+    tickers = list(state.get("tickers", []))
+    required_evidence = _get_required_evidence(state)
+
+    for ticker in tickers:
+        for evidence_type in ("news", "market", "fundamentals", "sentiment", "chart"):
+            if evidence_type in required_evidence:
+                steps.append({
+                    "skill": evidence_type,
+                    "ticker": ticker,
+                    "params": {},
+                })
+
+    return steps
+
+
+def _covers_required_evidence(state: dict, steps: list[dict]) -> bool:
+    required = set(_get_required_evidence(state))
+    tickers = list(state.get("tickers", []))
+
+    for ticker in tickers:
+        available = {
+            step["skill"]
+            for step in steps
+            if step.get("ticker") == ticker
+        }
+        if not required.issubset(available):
+            return False
+
+    return True
+
+
+def _llm_research_enabled() -> bool:
+    value = os.getenv("USE_LLM_RESEARCH")
+    if value is not None:
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    return bool(os.getenv("OPENAI_API_KEY"))
+
+
+def _build_research_steps(state: dict) -> list[dict]:
+    default_steps = _build_default_research_steps(state)
+
+    if not _llm_research_enabled():
+        return default_steps
+
+    llm_plan = run_llm_research_planner(state)
+    if llm_plan is None:
+        return default_steps
+
+    steps = llm_plan.get("steps", [])
+    if not _covers_required_evidence(state, steps):
+        return default_steps
+
+    return steps
 
 
 def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> dict:
     """
-    Deterministic Research Agent.
+    Hybrid Research Agent.
 
-    The agent does not contain the content logic itself. Instead it calls
-    injected skill functions, stores their outputs in RunState, and records
-    any missing evidence gaps.
+    The agent optionally asks an LLM to build a structured fetch plan, but
+    actual skill execution stays deterministic and validated in code.
     """
     next_state = clone_state(state)
     _ensure_evidence_slots(next_state)
@@ -100,69 +273,12 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
         return next_state
 
     query = next_state.get("query", "")
-    required_evidence = _get_required_evidence(next_state)
     registry = skills or {}
 
     next_state["gaps"] = []
+    steps = _build_research_steps(next_state)
 
-    for ticker in tickers:
-        if "news" in required_evidence:
-            news_skill = registry.get("news")
-            if news_skill is None:
-                _set_gap(next_state, f"missing_skill:news:{ticker}")
-            else:
-                news_result = _run_news_skill(news_skill, ticker, query)
-                if _empty_evidence_result(news_result):
-                    _set_gap(next_state, f"missing_evidence:news:{ticker}")
-                else:
-                    _store_ticker_evidence(next_state, "news", ticker, news_result)
-
-        if "market" in required_evidence:
-            market_skill = registry.get("market")
-            if market_skill is None:
-                _set_gap(next_state, f"missing_skill:market:{ticker}")
-            else:
-                market_result = _run_market_skill(market_skill, ticker)
-                if _empty_evidence_result(market_result):
-                    _set_gap(next_state, f"missing_evidence:market:{ticker}")
-                else:
-                    _store_ticker_evidence(next_state, "market", ticker, market_result)
-
-        if "fundamentals" in required_evidence:
-            fundamentals_skill = registry.get("fundamentals")
-            if fundamentals_skill is None:
-                _set_gap(next_state, f"missing_skill:fundamentals:{ticker}")
-            else:
-                fundamentals_result = _run_fundamentals_skill(fundamentals_skill, ticker)
-                if _empty_evidence_result(fundamentals_result):
-                    _set_gap(next_state, f"missing_evidence:fundamentals:{ticker}")
-                else:
-                    _store_ticker_evidence(next_state, "fundamentals", ticker, fundamentals_result)
-
-        if "sentiment" in required_evidence:
-            sentiment_skill = registry.get("sentiment")
-            news_result = next_state["evidence"].get("news", {}).get(ticker, {})
-            if sentiment_skill is None:
-                _set_gap(next_state, f"missing_skill:sentiment:{ticker}")
-            elif _empty_evidence_result(news_result):
-                _set_gap(next_state, f"missing_dependency:news_for_sentiment:{ticker}")
-            else:
-                sentiment_result = _run_sentiment_skill(sentiment_skill, news_result)
-                if _empty_evidence_result(sentiment_result):
-                    _set_gap(next_state, f"missing_evidence:sentiment:{ticker}")
-                else:
-                    _store_ticker_evidence(next_state, "sentiment", ticker, sentiment_result)
-
-        if "chart" in required_evidence:
-            chart_skill = registry.get("chart")
-            if chart_skill is None:
-                _set_gap(next_state, f"missing_skill:chart:{ticker}")
-            else:
-                ticker_bundle = _build_ticker_evidence_bundle(next_state, ticker)
-                chart_result = _run_chart_skill(chart_skill, ticker, ticker_bundle, query)
-                if _empty_evidence_result(chart_result):
-                    _set_gap(next_state, f"missing_evidence:chart:{ticker}")
-                else:
-                    next_state["evidence"]["charts"].append(chart_result)
+    for step in steps:
+        _execute_skill_step(next_state, registry, query, step)
 
     return next_state
