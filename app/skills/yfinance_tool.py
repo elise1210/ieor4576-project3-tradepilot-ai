@@ -1,13 +1,23 @@
 from datetime import date, datetime, timedelta
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 
 import pandas as pd
-import yfinance as yf
+try:
+    import yfinance as yf
+except ImportError:  # pragma: no cover - environment-dependent dependency
+    class _MissingYFinance:
+        def download(self, *args, **kwargs):
+            raise ModuleNotFoundError("yfinance is not installed")
+
+        def Ticker(self, *args, **kwargs):
+            raise ModuleNotFoundError("yfinance is not installed")
+
+    yf = _MissingYFinance()
 
 from app.skills.date_utils import parse_user_date
 
 
-def normalize_reference_date(value: Optional[date | datetime | str] = None) -> date:
+def normalize_reference_date(value: Optional[Union[date, datetime, str]] = None) -> date:
     """
     Normalize common user-facing date values.
 
@@ -61,8 +71,8 @@ def _safe_float(value) -> Optional[float]:
 def _download_daily(
     ticker: str,
     period: Optional[str] = None,
-    start: Optional[date | str] = None,
-    end: Optional[date | str] = None,
+    start: Optional[Union[date, str]] = None,
+    end: Optional[Union[date, str]] = None,
     auto_adjust: bool = False,
 ) -> pd.DataFrame:
     kwargs = {
@@ -87,8 +97,8 @@ def _download_daily(
 def fetch_daily_prices(
     ticker: str,
     period: str = "3mo",
-    start: Optional[date | str] = None,
-    end: Optional[date | str] = None,
+    start: Optional[Union[date, str]] = None,
+    end: Optional[Union[date, str]] = None,
     auto_adjust: bool = False,
 ) -> pd.DataFrame:
     """
@@ -147,7 +157,7 @@ def fetch_recent_daily_prices(
 
 def fetch_daily_prices_until(
     ticker: str,
-    end_date: Optional[date | str] = None,
+    end_date: Optional[Union[date, str]] = None,
     days: int = 7,
     lookback_calendar_days: int = 30,
 ) -> list[dict]:
@@ -171,7 +181,7 @@ def fetch_daily_prices_until(
 
 def fetch_ohlcv_on_date(
     ticker: str,
-    target_date: date | str,
+    target_date: Union[date, str],
     fields: Optional[Iterable[str]] = None,
 ) -> dict:
     """

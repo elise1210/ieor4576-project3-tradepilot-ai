@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from app.skills.sentiment import analyze_news_sentiment, run_sentiment_agent
+from app.skills.sentiment import analyze_news_sentiment, run_sentiment_skill
 
 
 class FakeFinbert:
@@ -44,8 +44,8 @@ class SentimentSkillTests(unittest.TestCase):
         self.assertEqual(result["sentiment"], "positive")
         self.assertEqual(result["positive_count"], 1)
 
-    def test_run_sentiment_agent_requires_ticker_or_news_result(self):
-        result = run_sentiment_agent()
+    def test_run_sentiment_skill_requires_ticker_or_news_result(self):
+        result = run_sentiment_skill()
 
         self.assertIn("error", result)
         self.assertEqual(result["sentiment"], "neutral")
@@ -70,9 +70,9 @@ class SentimentSkillTests(unittest.TestCase):
         self.assertEqual(result["article_count"], 1)
         self.assertIn("Sentiment model unavailable", result["summary"])
 
-    @patch("app.skills.sentiment.run_news_agent")
+    @patch("app.skills.sentiment.run_news_skill")
     @patch("app.skills.sentiment.get_finbert")
-    def test_run_sentiment_agent_can_fetch_news_for_target_date(self, mock_get_finbert, mock_run_news):
+    def test_run_sentiment_skill_can_fetch_news_for_target_date(self, mock_get_finbert, mock_run_news):
         mock_get_finbert.return_value = FakeFinbert()
         mock_run_news.return_value = {
             "ticker": "AAPL",
@@ -88,7 +88,7 @@ class SentimentSkillTests(unittest.TestCase):
             ],
         }
 
-        result = run_sentiment_agent(
+        result = run_sentiment_skill(
             ticker="AAPL",
             target_date="2026-05-01",
         )

@@ -34,9 +34,9 @@ def fetch_market_data(ticker: str, period: str = "3mo") -> pd.DataFrame:
     return fetch_daily_prices(ticker=ticker, period=period)
 
 
-def run_market_agent(ticker: str, days: int = 7, end_date=None) -> dict:
+def run_market_skill(ticker: str, days: int = 7, end_date=None) -> dict:
     """
-    Market Agent for TradePilot AI.
+    Market skill for TradePilot AI.
 
     This agent:
     - retrieves recent price data using yfinance
@@ -142,7 +142,7 @@ def run_market_agent(ticker: str, days: int = 7, end_date=None) -> dict:
             "start_date": history[0]["date"] if history else None,
             "end_date": history[-1]["date"] if history else None,
             "note": (
-                "Market Agent uses recent historical price behavior only. "
+                "Market skill uses recent historical price behavior only. "
                 "It does not forecast future stock prices."
             ),
         }
@@ -185,3 +185,6 @@ def format_market_output(market_result: dict) -> str:
     lines.append("This is recent market context, not a price forecast.")
 
     return "\n".join(lines)
+
+
+__all__ = ["run_market_skill", "format_market_output", "fetch_market_data"]

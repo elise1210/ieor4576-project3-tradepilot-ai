@@ -5,6 +5,7 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from collections import Counter
+from typing import Optional
 
 from app.skills.date_utils import parse_user_date
 from app.skills.finnhub_tool import finnhub_company_news, finnhub_company_news_range
@@ -359,9 +360,9 @@ def summarize_news_with_openai(
     items: list,
     ticker: str,
     user_query: str,
-    model: str | None = None,
+    model: Optional[str] = None,
     timeout: int = 12,
-) -> str | None:
+) -> Optional[str]:
     """
     Optional AI news summary.
 
@@ -432,7 +433,7 @@ def summarize_news_with_openai_result(
     items: list,
     ticker: str,
     user_query: str,
-    model: str | None = None,
+    model: Optional[str] = None,
     timeout: int = 12,
 ) -> dict:
     """
@@ -562,22 +563,22 @@ def format_news_items(items: list) -> list:
     return formatted
 
 
-def run_news_agent(
+def run_news_skill(
     ticker: str,
     user_query: str = "",
     target_date=None,
     days: int = 7,
     max_items: int = 8,
-    query: str | None = None,
+    query: Optional[str] = None,
 ) -> dict:
     """
-    News Agent for TradePilot AI.
+    News skill for TradePilot AI.
 
-    This agent:
+    This skill:
     1. Retrieves recent company news from Finnhub.
     2. Filters for ticker/company relevance.
     3. Prioritizes price-relevant news when the user asks about buy/hold/sell or movement.
-    4. Produces a compact news summary for the Decision Agent.
+    4. Produces a compact news summary for downstream decision-making.
 
     It does NOT predict future stock prices.
     """
@@ -657,3 +658,11 @@ def run_news_agent(
         "summary_error": ai_summary_result["summary_error"],
         "items": format_news_items(selected_items),
     }
+
+
+__all__ = [
+    "extract_news_date",
+    "run_news_skill",
+    "summarize_news_with_openai",
+    "summarize_news_with_openai_result",
+]

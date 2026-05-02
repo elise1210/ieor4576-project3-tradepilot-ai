@@ -1,8 +1,11 @@
 import os
 from datetime import date, timedelta
-from typing import Optional
+from typing import Optional, Union
 
-import finnhub
+try:
+    import finnhub
+except ImportError:  # pragma: no cover - environment-dependent dependency
+    finnhub = None
 from dotenv import load_dotenv
 
 
@@ -12,16 +15,18 @@ FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
 finnhub_client = (
     finnhub.Client(api_key=FINNHUB_API_KEY)
-    if FINNHUB_API_KEY
+    if finnhub is not None and FINNHUB_API_KEY
     else None
 )
 
 
 def _client_missing_error() -> dict:
+    if finnhub is None:
+        return {"error": "finnhub-python package is not installed."}
     return {"error": "FINNHUB_API_KEY not found. Please set it in .env"}
 
 
-def _normalize_date(value: Optional[date | str]) -> date:
+def _normalize_date(value: Optional[Union[date, str]]) -> date:
     if value is None:
         return date.today()
     if isinstance(value, date):
@@ -37,6 +42,37 @@ def finnhub_quote(ticker: str) -> dict:
         return finnhub_client.quote(ticker.upper())
     except Exception as e:
         return {"error": str(e)}
+
+
+def finnhub_company_profile(ticker: str) -> dict:
+    if finnhub_client is None:
+        return {"ticker": ticker.upper(), **_client_missing_error()}
+
+    try:
+        response = finnhub_client.company_profile2(symbol=ticker.upper()) or {}
+
+        keep = [
+            "country",
+            "currency",
+            "exchange",
+            "finnhubIndustry",
+            "ipo",
+            "logo",
+            "marketCapitalization",
+            "name",
+            "phone",
+            "shareOutstanding",
+            "ticker",
+            "weburl",
+        ]
+
+        output = {key: response.get(key) for key in keep}
+        output["ticker"] = (response.get("ticker") or ticker).upper()
+
+        return output
+
+    except Exception as e:
+        return {"ticker": ticker.upper(), "error": str(e)}
 
 
 def finnhub_company_news(
@@ -57,8 +93,8 @@ def finnhub_company_news(
 
 def finnhub_company_news_range(
     ticker: str,
-    start_date: date | str,
-    end_date: date | str,
+    start_date: Union[date, str],
+    end_date: Union[date, str],
     max_items: int = 30,
 ) -> list:
     if finnhub_client is None:

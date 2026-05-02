@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from app.skills.news import (
     extract_news_date,
-    run_news_agent,
+    run_news_skill,
     summarize_news_with_openai,
     summarize_news_with_openai_result,
 )
@@ -29,10 +29,10 @@ class NewsSkillDateTests(unittest.TestCase):
         )
 
     @patch("app.skills.news.finnhub_company_news_range")
-    def test_run_news_agent_accepts_explicit_target_date(self, mock_news_range):
+    def test_run_news_skill_accepts_explicit_target_date(self, mock_news_range):
         mock_news_range.return_value = []
 
-        result = run_news_agent(
+        result = run_news_skill(
             ticker="AAPL",
             user_query="AAPL news",
             target_date="2026.12.01",
@@ -44,7 +44,7 @@ class NewsSkillDateTests(unittest.TestCase):
         mock_news_range.assert_called_once()
 
     @patch("app.skills.news.finnhub_company_news_range")
-    def test_run_news_agent_preserves_summary_for_sentiment(self, mock_news_range):
+    def test_run_news_skill_preserves_summary_for_sentiment(self, mock_news_range):
         mock_news_range.return_value = [
             {
                 "datetime": 1777636800,
@@ -56,7 +56,7 @@ class NewsSkillDateTests(unittest.TestCase):
             }
         ]
 
-        result = run_news_agent(
+        result = run_news_skill(
             ticker="AAPL",
             target_date="2026-05-01",
         )
@@ -128,7 +128,7 @@ class NewsSkillDateTests(unittest.TestCase):
 
     @patch.dict("os.environ", {}, clear=True)
     @patch("app.skills.news.finnhub_company_news_range")
-    def test_run_news_agent_marks_rule_based_fallback(self, mock_news_range):
+    def test_run_news_skill_marks_rule_based_fallback(self, mock_news_range):
         mock_news_range.return_value = [
             {
                 "datetime": 1777636800,
@@ -140,7 +140,7 @@ class NewsSkillDateTests(unittest.TestCase):
             }
         ]
 
-        result = run_news_agent(
+        result = run_news_skill(
             ticker="AAPL",
             target_date="2026-05-01",
         )

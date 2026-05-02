@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
 
 import numpy as np
-from transformers import pipeline
+try:
+    from transformers import pipeline
+except ImportError:  # pragma: no cover - environment-dependent dependency
+    pipeline = None
 
-from app.skills.news import run_news_agent
+from app.skills.news import run_news_skill
 
 
 _finbert = None
@@ -13,6 +16,8 @@ def get_finbert():
     global _finbert
 
     if _finbert is None:
+        if pipeline is None:
+            raise ModuleNotFoundError("transformers is not installed")
         _finbert = pipeline(
             "text-classification",
             model="ProsusAI/finbert",
@@ -156,13 +161,13 @@ def analyze_news_sentiment(news_result: dict) -> dict:
     }
 
 
-def run_sentiment_agent(
-    ticker: str | None = None,
-    news_result: dict | None = None,
+def run_sentiment_skill(
+    ticker=None,
+    news_result=None,
     user_query: str = "",
     target_date=None,
     max_items: int = 8,
-    query: str | None = None,
+    query=None,
 ) -> dict:
     """
     Sentiment skill entry point.
@@ -183,7 +188,7 @@ def run_sentiment_agent(
                 "article_count": 0,
             }
 
-        news_result = run_news_agent(
+        news_result = run_news_skill(
             ticker=ticker,
             user_query=user_query,
             target_date=target_date,
@@ -204,3 +209,11 @@ def format_sentiment_output(sentiment_result: dict) -> str:
         f"Articles: {sentiment_result.get('article_count', 0)}\n"
         f"{sentiment_result.get('summary', '')}"
     )
+
+
+__all__ = [
+    "analyze_news_sentiment",
+    "get_finbert",
+    "run_sentiment_skill",
+    "format_sentiment_output",
+]

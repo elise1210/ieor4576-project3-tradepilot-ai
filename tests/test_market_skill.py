@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app.skills.market import run_market_agent
+from app.skills.market import run_market_skill
 
 
 def build_market_df() -> pd.DataFrame:
@@ -29,10 +29,10 @@ def build_market_df() -> pd.DataFrame:
 
 class MarketSkillTests(unittest.TestCase):
     @patch("app.skills.yfinance_tool.yf.download")
-    def test_market_agent_returns_history_for_chart(self, mock_download):
+    def test_market_skill_returns_history_for_chart(self, mock_download):
         mock_download.return_value = build_market_df()
 
-        result = run_market_agent("AAPL", days=7)
+        result = run_market_skill("AAPL", days=7)
 
         self.assertEqual(result["ticker"], "AAPL")
         self.assertEqual(len(result["history"]), 7)
@@ -44,10 +44,10 @@ class MarketSkillTests(unittest.TestCase):
         self.assertEqual(result["used_end_date"], "2026-05-01")
 
     @patch("app.skills.yfinance_tool.yf.download")
-    def test_market_agent_accepts_end_date(self, mock_download):
+    def test_market_skill_accepts_end_date(self, mock_download):
         mock_download.return_value = build_market_df()
 
-        result = run_market_agent("AAPL", days=3, end_date="2026-05-01")
+        result = run_market_skill("AAPL", days=3, end_date="2026-05-01")
 
         self.assertEqual(result["requested_date"], "2026-05-01")
         self.assertEqual(result["used_end_date"], "2026-05-01")

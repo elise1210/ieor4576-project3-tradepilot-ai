@@ -59,14 +59,17 @@ def _normalize_reference_date(reference_date: Any = None) -> date:
 
 
 def _today_date_patterns(reference_date: date) -> tuple[str, ...]:
+    month = reference_date.month
+    day = reference_date.day
+    year = reference_date.year
     return (
         reference_date.isoformat(),
         reference_date.strftime("%m/%d/%Y"),
-        reference_date.strftime("%-m/%-d/%Y"),
-        reference_date.strftime("%B %-d, %Y").lower(),
-        reference_date.strftime("%B %-d %Y").lower(),
-        reference_date.strftime("%b %-d, %Y").lower(),
-        reference_date.strftime("%b %-d %Y").lower(),
+        f"{month}/{day}/{year}",
+        f"{reference_date.strftime('%B')} {day}, {year}".lower(),
+        f"{reference_date.strftime('%B')} {day} {year}".lower(),
+        f"{reference_date.strftime('%b')} {day}, {year}".lower(),
+        f"{reference_date.strftime('%b')} {day} {year}".lower(),
     )
 
 
