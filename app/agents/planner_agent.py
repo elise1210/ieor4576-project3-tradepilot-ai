@@ -1,8 +1,15 @@
 import re
+import os
 from typing import Optional, Tuple
 
+from dotenv import load_dotenv
+
+from app.agents.llm_planner import run_llm_planner
 from app.skills.chart import should_show_chart_for_query
 from app.state import clone_state
+
+
+load_dotenv()
 
 
 COMPANY_NAME_TO_TICKER = {
@@ -247,17 +254,24 @@ def build_clarification_question(
     return None
 
 
-def run_planner_agent(state: dict) -> dict:
+def _apply_planner_result(
+    state: dict,
+    intent: str,
+    tickers: list[str],
+    time_horizon: str,
+    ticker_source: str,
+    confidence: Optional[str],
+    clarification_question: Optional[str] = None,
+) -> dict:
     next_state = clone_state(state)
 
     query = next_state.get("query", "")
-    provided_ticker = next_state.get("user_inputs", {}).get("provided_ticker")
-
-    intent = classify_intent(query)
-    tickers, ticker_source, confidence = infer_tickers(query, provided_ticker)
-    time_horizon = infer_time_horizon(query)
     plan = build_task_plan(intent, query=query)
-    clarification_question = build_clarification_question(intent, tickers, time_horizon)
+    clarification_question = clarification_question or build_clarification_question(
+        intent,
+        tickers,
+        time_horizon,
+    )
     out_of_scope = is_out_of_scope(query, tickers, intent)
     scope_note = build_scope_note(query, intent)
 
@@ -274,3 +288,63 @@ def run_planner_agent(state: dict) -> dict:
     next_state["metadata"]["ticker_inference_confidence"] = confidence
 
     return next_state
+
+
+def _run_deterministic_planner(state: dict) -> dict:
+    query = state.get("query", "")
+    provided_ticker = state.get("user_inputs", {}).get("provided_ticker")
+
+    intent = classify_intent(query)
+    tickers, ticker_source, confidence = infer_tickers(query, provided_ticker)
+    time_horizon = infer_time_horizon(query)
+
+    return _apply_planner_result(
+        state=state,
+        intent=intent,
+        tickers=tickers,
+        time_horizon=time_horizon,
+        ticker_source=ticker_source,
+        confidence=confidence,
+    )
+
+
+def _llm_planner_enabled() -> bool:
+    value = os.getenv("USE_LLM_PLANNER")
+    if value is not None:
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    return bool(os.getenv("OPENAI_API_KEY"))
+
+
+def run_planner_agent(state: dict) -> dict:
+    if not _llm_planner_enabled():
+        return _run_deterministic_planner(state)
+
+    query = state.get("query", "")
+    provided_ticker = state.get("user_inputs", {}).get("provided_ticker")
+    llm_result = run_llm_planner(
+        query=query,
+        provided_ticker=provided_ticker,
+        company_name_to_ticker=COMPANY_NAME_TO_TICKER,
+    )
+
+    if llm_result is None:
+        return _run_deterministic_planner(state)
+
+    clarification_question = llm_result.get("clarification_question")
+    if llm_result.get("needs_human") and clarification_question is None:
+        clarification_question = build_clarification_question(
+            llm_result["intent"],
+            llm_result["tickers"],
+            llm_result["time_horizon"],
+        )
+
+    return _apply_planner_result(
+        state=state,
+        intent=llm_result["intent"],
+        tickers=llm_result["tickers"],
+        time_horizon=llm_result["time_horizon"],
+        ticker_source=llm_result["ticker_source"],
+        confidence=llm_result["ticker_inference_confidence"],
+        clarification_question=clarification_question,
+    )

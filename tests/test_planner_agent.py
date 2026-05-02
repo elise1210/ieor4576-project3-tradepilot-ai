@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from app.agents.planner_agent import run_planner_agent
 from app.state import build_initial_state
@@ -89,6 +90,73 @@ class PlannerAgentTests(unittest.TestCase):
         result = run_planner_agent(state)
 
         self.assertNotIn("chart", result["plan"]["required_evidence"])
+
+    @patch.dict(
+        "os.environ",
+        {
+            "USE_LLM_PLANNER": "true",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_PLANNER_MODEL": "gpt-4o-mini",
+        },
+        clear=True,
+    )
+    @patch("app.agents.llm_planner.urllib.request.urlopen")
+    def test_llm_planner_can_infer_fuzzy_company_reference(self, mock_urlopen):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return (
+                    b'{"choices":[{"message":{"content":"{\\"intent\\":\\"buy_sell_decision\\",\\"tickers\\":[\\"AAPL\\"],\\"time_horizon\\":\\"short_term\\",\\"needs_human\\":false,\\"clarification_question\\":null,\\"ticker_source\\":\\"llm_inference\\",\\"ticker_inference_confidence\\":\\"medium\\",\\"reasoning_brief\\":\\"The iPhone company refers to Apple.\\"}"}}]}'
+                )
+
+        mock_urlopen.return_value = FakeResponse()
+
+        state = build_initial_state("Should I buy the iPhone company this week?")
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "buy_sell_decision")
+        self.assertEqual(result["tickers"], ["AAPL"])
+        self.assertEqual(result["time_horizon"], "short_term")
+        self.assertEqual(result["metadata"]["ticker_source"], "llm_inference")
+        self.assertEqual(result["metadata"]["ticker_inference_confidence"], "medium")
+        self.assertFalse(result["needs_human"])
+
+    @patch.dict(
+        "os.environ",
+        {
+            "USE_LLM_PLANNER": "true",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_PLANNER_MODEL": "gpt-4o-mini",
+        },
+        clear=True,
+    )
+    @patch("app.agents.llm_planner.urllib.request.urlopen")
+    def test_llm_planner_falls_back_to_deterministic_on_invalid_json(self, mock_urlopen):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"choices":[{"message":{"content":"not-json"}}]}'
+
+        mock_urlopen.return_value = FakeResponse()
+
+        state = build_initial_state("Should I buy Apple this week?")
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "buy_sell_decision")
+        self.assertEqual(result["tickers"], ["AAPL"])
+        self.assertEqual(result["time_horizon"], "short_term")
+        self.assertEqual(result["metadata"]["ticker_source"], "company_name")
+        self.assertFalse(result["needs_human"])
 
 
 if __name__ == "__main__":
