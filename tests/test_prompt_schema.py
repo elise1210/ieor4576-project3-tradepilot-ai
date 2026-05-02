@@ -38,6 +38,10 @@ class PromptSchemaTests(unittest.TestCase):
         self.assertIn("semantic evidence critic", prompt)
         self.assertIn("Available skill schemas", prompt)
         self.assertIn("thin evidence", prompt)
+        self.assertIn("Return exactly these top-level fields", prompt)
+        self.assertIn("follow_up_steps should usually be non-empty", prompt)
+        self.assertIn("Example 1:", prompt)
+        self.assertIn('"skill": "news"', prompt)
 
     def test_prompt_instruction_lists_are_non_empty(self):
         self.assertTrue(build_research_user_instructions())

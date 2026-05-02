@@ -13,6 +13,7 @@ load_dotenv()
 SkillRegistry = Dict[str, Callable]
 EVIDENCE_KEYS = ("news", "market", "fundamentals", "sentiment", "charts")
 PRIMARY_EVIDENCE_KEYS = {"news", "market", "fundamentals", "sentiment"}
+SUPPORTED_STEP_SKILLS = {"news", "market", "fundamentals", "sentiment", "chart"}
 
 
 def _empty_evidence_result(result: object) -> bool:
@@ -85,6 +86,79 @@ def _build_ticker_evidence_bundle(state: dict, ticker: str) -> dict:
 
 def _get_required_evidence(state: dict) -> list[str]:
     return list(state.get("plan", {}).get("required_evidence", []))
+
+
+def _normalize_follow_up_steps(steps: object) -> list[dict]:
+    if not isinstance(steps, list):
+        return []
+
+    normalized = []
+    seen = set()
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        skill = step.get("skill")
+        ticker = step.get("ticker")
+        params = step.get("params", {})
+        if skill not in SUPPORTED_STEP_SKILLS:
+            continue
+        if not isinstance(ticker, str) or not ticker.strip():
+            continue
+        if not isinstance(params, dict):
+            params = {}
+        key = (skill, ticker.upper().strip(), tuple(sorted(params.items())))
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append({
+            "skill": skill,
+            "ticker": ticker.upper().strip(),
+            "params": params,
+        })
+
+    return normalized
+
+
+def _follow_up_task_to_step(task: object) -> Optional[dict]:
+    if not isinstance(task, str) or not task.startswith("collect_") or ":" not in task:
+        return None
+
+    skill = task[len("collect_") :].split(":", 1)[0]
+    ticker = task.split(":", 1)[1].strip().upper()
+    if skill not in SUPPORTED_STEP_SKILLS or not ticker:
+        return None
+
+    return {
+        "skill": skill,
+        "ticker": ticker,
+        "params": {},
+    }
+
+
+def _critic_follow_up_steps(state: dict) -> list[dict]:
+    critic_result = state.get("critic_result", {})
+    if not isinstance(critic_result, dict):
+        return []
+    if critic_result.get("enough_evidence"):
+        return []
+
+    llm_steps = _normalize_follow_up_steps(critic_result.get("llm_follow_up_steps"))
+    if llm_steps:
+        return llm_steps
+
+    deterministic_steps = []
+    seen = set()
+    for task in critic_result.get("follow_up_tasks", []):
+        step = _follow_up_task_to_step(task)
+        if step is None:
+            continue
+        key = (step["skill"], step["ticker"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deterministic_steps.append(step)
+
+    return deterministic_steps
 
 
 def _run_news_skill(skill: Callable, ticker: str, query: str, params: Optional[dict] = None) -> dict:
@@ -265,6 +339,13 @@ def _llm_research_enabled() -> bool:
 
 
 def _build_research_steps(state: dict) -> tuple[list[dict], str, Optional[str]]:
+    critic_steps = _critic_follow_up_steps(state)
+    if critic_steps:
+        reasoning_brief = state.get("metadata", {}).get("critic_reasoning_brief")
+        if not reasoning_brief:
+            reasoning_brief = "Executing critic-directed follow-up steps."
+        return critic_steps, "critic_follow_up", reasoning_brief
+
     default_steps = _build_default_research_steps(state)
 
     if not _llm_research_enabled():

@@ -242,6 +242,32 @@ class ResearchAgentTests(unittest.TestCase):
         self.assertEqual(len(result["evidence"]["charts"]), 1)
         self.assertEqual(result["evidence"]["charts"][0]["charts"][0]["id"], "nvda-price")
 
+    def test_research_agent_executes_critic_follow_up_steps_directly(self):
+        state = build_initial_state("Why did NVDA move today?")
+        state["tickers"] = ["NVDA"]
+        state["plan"]["required_evidence"] = ["news", "market", "fundamentals", "chart"]
+        state["evidence"]["news"]["NVDA"] = fake_news_skill("NVDA", state["query"])
+        state["critic_result"] = {
+            "enough_evidence": False,
+            "follow_up_tasks": ["collect_sentiment:NVDA"],
+            "llm_follow_up_steps": [],
+        }
+
+        result = run_research_agent(
+            state,
+            skills={
+                "sentiment": fake_sentiment_skill,
+            },
+        )
+
+        self.assertEqual(result["metadata"]["research_mode"], "critic_follow_up")
+        self.assertEqual(
+            result["metadata"]["executed_research_steps"],
+            [{"skill": "sentiment", "ticker": "NVDA", "params": {}}],
+        )
+        self.assertEqual(result["evidence"]["sentiment"]["NVDA"]["source_ticker"], "NVDA")
+        self.assertEqual(result["gaps"], [])
+
     @patch.dict(
         "os.environ",
         {
