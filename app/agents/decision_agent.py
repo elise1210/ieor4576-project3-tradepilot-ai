@@ -1,5 +1,13 @@
+import os
+
+from dotenv import load_dotenv
+
+from app.agents.llm_decision import run_llm_decision_synthesizer
 from app.state import clone_state
 from typing import Optional
+
+
+load_dotenv()
 
 
 def _safe_float(x, default=0.0):
@@ -276,6 +284,48 @@ def _comparison_summary(decisions: dict) -> str:
     )
 
 
+def _llm_decision_enabled() -> bool:
+    value = os.getenv("USE_LLM_DECISION")
+    if value is not None:
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    return bool(os.getenv("OPENAI_API_KEY"))
+
+
+def _apply_llm_decision_overlay(state: dict, draft_decision: dict) -> tuple[dict, str, Optional[str]]:
+    if not _llm_decision_enabled():
+        return draft_decision, "deterministic_only", None
+
+    llm_result = run_llm_decision_synthesizer(state, draft_decision)
+    if llm_result is None:
+        return draft_decision, "deterministic_fallback", None
+
+    decision = clone_state({"decision": draft_decision})["decision"]
+    reasoning_brief = llm_result.get("reasoning_brief")
+
+    if decision.get("type") == "comparison":
+        comparison_summary = llm_result.get("comparison_summary")
+        if isinstance(comparison_summary, str) and comparison_summary.strip():
+            decision["comparison_summary"] = comparison_summary.strip()
+
+        for ticker, payload in llm_result.get("per_ticker", {}).items():
+            if ticker not in decision.get("per_ticker", {}):
+                continue
+            if "reasoning" in payload:
+                decision["per_ticker"][ticker]["reasoning"] = payload["reasoning"]
+            if "key_driver" in payload:
+                decision["per_ticker"][ticker]["drivers"]["key_driver"] = payload["key_driver"]
+
+        return decision, "llm", reasoning_brief
+
+    if "reasoning" in llm_result:
+        decision["reasoning"] = llm_result["reasoning"]
+    if "key_driver" in llm_result:
+        decision["drivers"]["key_driver"] = llm_result["key_driver"]
+
+    return decision, "llm", reasoning_brief
+
+
 def run_decision_agent(state: dict) -> dict:
     next_state = clone_state(state)
     tickers = list(next_state.get("tickers", []))
@@ -312,7 +362,14 @@ def run_decision_agent(state: dict) -> dict:
             ),
         }
 
+    final_decision, decision_mode, reasoning_brief = _apply_llm_decision_overlay(
+        next_state,
+        final_decision,
+    )
+
     next_state["decision"] = final_decision
     next_state["confidence"] = final_decision.get("confidence", next_state.get("confidence"))
+    next_state["metadata"]["decision_mode"] = decision_mode
+    next_state["metadata"]["decision_reasoning_brief"] = reasoning_brief
 
     return next_state

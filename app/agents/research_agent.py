@@ -140,6 +140,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:news:{ticker}")
             return
         _store_ticker_evidence(next_state, "news", ticker, result)
+        next_state["metadata"]["executed_research_steps"].append(step)
         return
 
     if skill_name == "market":
@@ -152,6 +153,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:market:{ticker}")
             return
         _store_ticker_evidence(next_state, "market", ticker, result)
+        next_state["metadata"]["executed_research_steps"].append(step)
         return
 
     if skill_name == "fundamentals":
@@ -164,6 +166,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:fundamentals:{ticker}")
             return
         _store_ticker_evidence(next_state, "fundamentals", ticker, result)
+        next_state["metadata"]["executed_research_steps"].append(step)
         return
 
     if skill_name == "sentiment":
@@ -180,6 +183,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:sentiment:{ticker}")
             return
         _store_ticker_evidence(next_state, "sentiment", ticker, result)
+        next_state["metadata"]["executed_research_steps"].append(step)
         return
 
     if skill_name == "chart":
@@ -193,6 +197,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:chart:{ticker}")
             return
         next_state["evidence"]["charts"].append(result)
+        next_state["metadata"]["executed_research_steps"].append(step)
 
 
 def _build_default_research_steps(state: dict) -> list[dict]:
@@ -236,21 +241,21 @@ def _llm_research_enabled() -> bool:
     return bool(os.getenv("OPENAI_API_KEY"))
 
 
-def _build_research_steps(state: dict) -> list[dict]:
+def _build_research_steps(state: dict) -> tuple[list[dict], str, Optional[str]]:
     default_steps = _build_default_research_steps(state)
 
     if not _llm_research_enabled():
-        return default_steps
+        return default_steps, "deterministic_only", None
 
     llm_plan = run_llm_research_planner(state)
     if llm_plan is None:
-        return default_steps
+        return default_steps, "deterministic_fallback", None
 
     steps = llm_plan.get("steps", [])
     if not _covers_required_evidence(state, steps):
-        return default_steps
+        return default_steps, "deterministic_fallback", llm_plan.get("reasoning_brief")
 
-    return steps
+    return steps, "llm", llm_plan.get("reasoning_brief")
 
 
 def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> dict:
@@ -276,7 +281,11 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
     registry = skills or {}
 
     next_state["gaps"] = []
-    steps = _build_research_steps(next_state)
+    next_state["metadata"]["executed_research_steps"] = []
+    steps, research_mode, reasoning_brief = _build_research_steps(next_state)
+    next_state["metadata"]["research_mode"] = research_mode
+    next_state["metadata"]["research_reasoning_brief"] = reasoning_brief
+    next_state["metadata"]["research_plan_steps"] = steps
 
     for step in steps:
         _execute_skill_step(next_state, registry, query, step)

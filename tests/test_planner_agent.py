@@ -6,6 +6,7 @@ from app.state import build_initial_state
 
 
 class PlannerAgentTests(unittest.TestCase):
+    @patch.dict("os.environ", {"USE_LLM_PLANNER": "false"}, clear=False)
     def test_buy_query_with_company_name_infers_ticker(self):
         state = build_initial_state("Should I buy Apple this week?")
 
@@ -20,6 +21,7 @@ class PlannerAgentTests(unittest.TestCase):
         )
         self.assertFalse(result["needs_human"])
         self.assertEqual(result["metadata"]["ticker_source"], "company_name")
+        self.assertEqual(result["metadata"]["planner_mode"], "deterministic_only")
 
     def test_compare_query_infers_both_tickers(self):
         state = build_initial_state("Compare Nvidia vs AMD")
@@ -124,6 +126,11 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["time_horizon"], "short_term")
         self.assertEqual(result["metadata"]["ticker_source"], "llm_inference")
         self.assertEqual(result["metadata"]["ticker_inference_confidence"], "medium")
+        self.assertEqual(result["metadata"]["planner_mode"], "llm")
+        self.assertEqual(
+            result["metadata"]["planner_reasoning_brief"],
+            "The iPhone company refers to Apple.",
+        )
         self.assertFalse(result["needs_human"])
 
     @patch.dict(
@@ -156,6 +163,7 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["tickers"], ["AAPL"])
         self.assertEqual(result["time_horizon"], "short_term")
         self.assertEqual(result["metadata"]["ticker_source"], "company_name")
+        self.assertEqual(result["metadata"]["planner_mode"], "deterministic_fallback")
         self.assertFalse(result["needs_human"])
 
 

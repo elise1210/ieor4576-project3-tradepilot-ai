@@ -65,6 +65,7 @@ def fake_chart_skill(ticker: str, evidence: dict, query: str) -> dict:
 
 
 class ResearchAgentTests(unittest.TestCase):
+    @patch.dict("os.environ", {"USE_LLM_RESEARCH": "false"}, clear=False)
     def test_research_agent_populates_evidence_with_fake_skills(self):
         state = build_initial_state("Should I buy Apple this week?")
         state["tickers"] = ["AAPL"]
@@ -88,6 +89,9 @@ class ResearchAgentTests(unittest.TestCase):
             "large_cap",
         )
         self.assertEqual(result["evidence"]["sentiment"]["AAPL"]["sentiment"], "positive")
+        self.assertEqual(result["metadata"]["research_mode"], "deterministic_only")
+        self.assertEqual(len(result["metadata"]["research_plan_steps"]), 4)
+        self.assertEqual(len(result["metadata"]["executed_research_steps"]), 4)
 
     def test_research_agent_records_missing_skill_gap(self):
         state = build_initial_state("Should I buy Apple this week?")
@@ -247,6 +251,12 @@ class ResearchAgentTests(unittest.TestCase):
         self.assertEqual(result["evidence"]["news"]["AAPL"]["max_items_used"], 5)
         self.assertEqual(result["evidence"]["market"]["AAPL"]["lookback_days_used"], 10)
         self.assertEqual(result["evidence"]["sentiment"]["AAPL"]["source_ticker"], "AAPL")
+        self.assertEqual(result["metadata"]["research_mode"], "llm")
+        self.assertEqual(
+            result["metadata"]["research_reasoning_brief"],
+            "Widen the news window and recent market context.",
+        )
+        self.assertEqual(result["metadata"]["research_plan_steps"][0]["params"]["days"], 14)
 
     @patch.dict(
         "os.environ",
@@ -290,6 +300,7 @@ class ResearchAgentTests(unittest.TestCase):
         self.assertIn("AAPL", result["evidence"]["market"])
         self.assertIn("AAPL", result["evidence"]["fundamentals"])
         self.assertIn("AAPL", result["evidence"]["sentiment"])
+        self.assertEqual(result["metadata"]["research_mode"], "deterministic_fallback")
 
 
 if __name__ == "__main__":

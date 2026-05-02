@@ -262,6 +262,8 @@ def _apply_planner_result(
     ticker_source: str,
     confidence: Optional[str],
     clarification_question: Optional[str] = None,
+    planner_mode: Optional[str] = None,
+    planner_reasoning_brief: Optional[str] = None,
 ) -> dict:
     next_state = clone_state(state)
 
@@ -286,6 +288,8 @@ def _apply_planner_result(
     next_state["guardrails"]["scope_note"] = scope_note
     next_state["metadata"]["ticker_source"] = ticker_source
     next_state["metadata"]["ticker_inference_confidence"] = confidence
+    next_state["metadata"]["planner_mode"] = planner_mode
+    next_state["metadata"]["planner_reasoning_brief"] = planner_reasoning_brief
 
     return next_state
 
@@ -305,6 +309,7 @@ def _run_deterministic_planner(state: dict) -> dict:
         time_horizon=time_horizon,
         ticker_source=ticker_source,
         confidence=confidence,
+        planner_mode="deterministic_only",
     )
 
 
@@ -329,7 +334,9 @@ def run_planner_agent(state: dict) -> dict:
     )
 
     if llm_result is None:
-        return _run_deterministic_planner(state)
+        fallback_state = _run_deterministic_planner(state)
+        fallback_state["metadata"]["planner_mode"] = "deterministic_fallback"
+        return fallback_state
 
     clarification_question = llm_result.get("clarification_question")
     if llm_result.get("needs_human") and clarification_question is None:
@@ -347,4 +354,6 @@ def run_planner_agent(state: dict) -> dict:
         ticker_source=llm_result["ticker_source"],
         confidence=llm_result["ticker_inference_confidence"],
         clarification_question=clarification_question,
+        planner_mode="llm",
+        planner_reasoning_brief=llm_result.get("reasoning_brief"),
     )

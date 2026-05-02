@@ -50,6 +50,14 @@ def build_initial_state(query: str, ticker: Optional[str] = None) -> dict:
         "metadata": {
             "ticker_source": "provided" if clean_ticker else "unknown",
             "ticker_inference_confidence": None,
+            "planner_mode": None,
+            "planner_reasoning_brief": None,
+            "research_mode": None,
+            "research_reasoning_brief": None,
+            "research_plan_steps": [],
+            "executed_research_steps": [],
+            "decision_mode": None,
+            "decision_reasoning_brief": None,
         },
     }
 
