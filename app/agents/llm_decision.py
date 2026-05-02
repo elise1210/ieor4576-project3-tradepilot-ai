@@ -6,6 +6,11 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+from app.prompts.decision_prompt import (
+    build_decision_system_prompt,
+    build_decision_user_instructions,
+)
+
 
 load_dotenv()
 
@@ -130,16 +135,7 @@ def run_llm_decision_synthesizer(state: dict, draft_decision: dict, model: Optio
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You improve the wording of a stock-analysis app's final decision. "
-                    "Do not change recommendations, confidence, risk, or scores. "
-                    "Use only the provided evidence and draft decision. "
-                    "Do not give personalized financial advice or future price predictions. "
-                    "Return JSON only. "
-                    "For single-stock decisions return: reasoning, key_driver, reasoning_brief. "
-                    "For comparison decisions return: comparison_summary, per_ticker, reasoning_brief. "
-                    "Each per_ticker item may contain reasoning and key_driver."
-                ),
+                "content": build_decision_system_prompt(),
             },
             {
                 "role": "user",
@@ -151,11 +147,7 @@ def run_llm_decision_synthesizer(state: dict, draft_decision: dict, model: Optio
                         "critic_result": state.get("critic_result", {}),
                         "evidence": state.get("evidence", {}),
                         "draft_decision": draft_decision,
-                        "instructions": [
-                            "Preserve the original recommendation direction implied by the draft.",
-                            "Be explicit about mixed evidence when present.",
-                            "Keep reasoning concise and grounded in the provided evidence.",
-                        ],
+                        "instructions": build_decision_user_instructions(),
                     },
                     ensure_ascii=True,
                 ),

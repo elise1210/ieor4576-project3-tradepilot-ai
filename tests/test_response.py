@@ -107,6 +107,25 @@ class ResponseLayerTests(unittest.TestCase):
         self.assertIn("Company context:", answer)
         self.assertIn("Some supporting evidence was unavailable: sentiment.", answer)
 
+    def test_format_pipeline_answer_includes_thin_evidence_note_for_explanation(self):
+        state = build_initial_state("Why did NVDA move today?")
+        state["intent"] = "explanation"
+        state["tickers"] = ["NVDA"]
+        state["metadata"]["stopped_reason"] = "iteration_budget_exhausted"
+        state["metadata"]["critic_reasoning_brief"] = "The evidence is thin with only 2 articles and limited causal detail."
+        state["evidence"]["news"]["NVDA"] = {
+            "summary": "Two articles discussed bullish commentary, but neither identified a clear immediate catalyst."
+        }
+        state["critic_result"] = {
+            "semantic_enough": False,
+            "supporting_missing": ["sentiment:NVDA"],
+        }
+
+        answer = format_pipeline_answer(state)
+
+        self.assertIn("Evidence note:", answer)
+        self.assertIn("The evidence is thin with only 2 articles", answer)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -207,6 +207,41 @@ class ResearchAgentTests(unittest.TestCase):
             ],
         )
 
+    def test_research_agent_replaces_existing_chart_for_same_ticker(self):
+        state = build_initial_state("Why did NVDA move today?")
+        state["tickers"] = ["NVDA"]
+        state["plan"]["required_evidence"] = ["chart"]
+        state["evidence"]["market"]["NVDA"] = {
+            "ticker": "NVDA",
+            "history": [
+                {"date": "2026-04-30", "close": 199.57},
+                {"date": "2026-05-01", "close": 198.45},
+            ],
+        }
+        state["evidence"]["charts"] = [
+            {
+                "ticker": "NVDA",
+                "chart_id": "nvda-seven-day-price-trend",
+                "kind": "seven_day_price_trend",
+                "charts": [{"id": "old"}],
+            }
+        ]
+
+        def chart_with_id(ticker: str, evidence: dict, query: str) -> dict:
+            result = fake_chart_skill(ticker, evidence, query)
+            result["chart_id"] = "nvda-seven-day-price-trend"
+            return result
+
+        result = run_research_agent(
+            state,
+            skills={
+                "chart": chart_with_id,
+            },
+        )
+
+        self.assertEqual(len(result["evidence"]["charts"]), 1)
+        self.assertEqual(result["evidence"]["charts"][0]["charts"][0]["id"], "nvda-price")
+
     @patch.dict(
         "os.environ",
         {

@@ -58,6 +58,8 @@ def build_initial_state(query: str, ticker: Optional[str] = None) -> dict:
             "executed_research_steps": [],
             "decision_mode": None,
             "decision_reasoning_brief": None,
+            "critic_mode": None,
+            "critic_reasoning_brief": None,
         },
     }
 

@@ -70,6 +70,23 @@ def _format_research_answer(state: dict) -> str:
         ])
 
     supporting_missing = critic_result.get("supporting_missing", [])
+    semantic_enough = critic_result.get("semantic_enough")
+    critic_reasoning_brief = state.get("metadata", {}).get("critic_reasoning_brief")
+    stopped_reason = state.get("metadata", {}).get("stopped_reason")
+
+    if semantic_enough is False and critic_reasoning_brief:
+        lines.extend([
+            "",
+            "Evidence note:",
+            f"- {critic_reasoning_brief}",
+        ])
+    elif stopped_reason == "iteration_budget_exhausted" and critic_reasoning_brief:
+        lines.extend([
+            "",
+            "Evidence note:",
+            f"- {critic_reasoning_brief}",
+        ])
+
     if supporting_missing:
         readable = []
         for item in supporting_missing:

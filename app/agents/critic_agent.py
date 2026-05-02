@@ -1,4 +1,12 @@
+import os
+
+from dotenv import load_dotenv
+
+from app.agents.llm_critic import run_llm_critic
 from app.state import clone_state
+
+
+load_dotenv()
 
 
 def _has_usable_payload(payload: object) -> bool:
@@ -17,23 +25,6 @@ def _required_evidence(state: dict) -> list[str]:
 
 def _required_without_chart(state: dict) -> list[str]:
     return [item for item in _required_evidence(state) if item != "chart"]
-
-
-def _missing_evidence_items(state: dict) -> list[str]:
-    required = _required_without_chart(state)
-    tickers = list(state.get("tickers", []))
-    evidence = state.get("evidence", {})
-    missing = []
-
-    for ticker in tickers:
-        for evidence_type in required:
-            if evidence_type == "chart":
-                continue
-            payload = evidence.get(evidence_type, {}).get(ticker, {})
-            if not _has_usable_payload(payload):
-                missing.append(f"{evidence_type}:{ticker}")
-
-    return missing
 
 
 def _usable_for(state: dict, evidence_type: str, ticker: str) -> bool:
@@ -153,7 +144,7 @@ def _conflict_flags(state: dict) -> list[str]:
     return conflicts
 
 
-def _follow_up_tasks(state: dict, missing: list[str], fairness_issues: list[str]) -> list[str]:
+def _follow_up_tasks(missing: list[str], fairness_issues: list[str]) -> list[str]:
     tasks = []
     for item in missing:
         evidence_type, ticker = item.split(":", 1)
@@ -165,51 +156,40 @@ def _follow_up_tasks(state: dict, missing: list[str], fairness_issues: list[str]
     return tasks
 
 
-def _confidence_label(
-    enough_evidence: bool,
-    blocking_missing: list[str],
-    supporting_missing: list[str],
-    fairness_issues: list[str],
-    conflicts: list[str],
-) -> str:
-    if not enough_evidence or blocking_missing or fairness_issues:
-        return "Low"
-    if supporting_missing or conflicts:
-        return "Medium"
-    return "High"
+def _llm_critic_enabled() -> bool:
+    value = os.getenv("USE_LLM_CRITIC")
+    if value is not None:
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(os.getenv("OPENAI_API_KEY"))
 
 
-def run_critic_agent(state: dict) -> dict:
-    next_state = clone_state(state)
-
-    if next_state.get("needs_human"):
-        next_state["critic_result"] = {
+def _deterministic_critic_result(state: dict) -> dict:
+    if state.get("needs_human"):
+        return {
             "enough_evidence": False,
             "missing": ["human_clarification_required"],
+            "blocking_missing": ["human_clarification_required"],
+            "supporting_missing": [],
             "fairness_issues": [],
             "conflicts": [],
             "follow_up_tasks": [],
             "confidence": "Low",
         }
-        next_state["confidence"] = "Low"
-        return next_state
 
-    blocking_missing, supporting_missing = _missing_breakdown(next_state)
+    blocking_missing, supporting_missing = _missing_breakdown(state)
     missing = sorted(set(blocking_missing + supporting_missing))
-    fairness_issues = _comparison_fairness_issues(next_state)
-    conflicts = _conflict_flags(next_state)
+    fairness_issues = _comparison_fairness_issues(state)
+    conflicts = _conflict_flags(state)
 
-    enough_evidence = not blocking_missing and not fairness_issues and bool(next_state.get("tickers"))
-    follow_up_tasks = _follow_up_tasks(next_state, missing, fairness_issues)
-    confidence = _confidence_label(
-        enough_evidence,
-        blocking_missing,
-        supporting_missing,
-        fairness_issues,
-        conflicts,
-    )
+    enough_evidence = not blocking_missing and not fairness_issues and bool(state.get("tickers"))
+    follow_up_tasks = _follow_up_tasks(missing, fairness_issues)
+    confidence = "High"
+    if not enough_evidence or blocking_missing or fairness_issues:
+        confidence = "Low"
+    elif supporting_missing or conflicts:
+        confidence = "Medium"
 
-    next_state["critic_result"] = {
+    return {
         "enough_evidence": enough_evidence,
         "missing": missing,
         "blocking_missing": blocking_missing,
@@ -219,6 +199,49 @@ def run_critic_agent(state: dict) -> dict:
         "follow_up_tasks": follow_up_tasks,
         "confidence": confidence,
     }
+
+
+def run_critic_agent(state: dict) -> dict:
+    next_state = clone_state(state)
+
+    deterministic = _deterministic_critic_result(next_state)
+    semantic_enough = None
+    quality_issues = []
+    llm_follow_up_steps = []
+    critic_mode = "deterministic_only"
+    reasoning_brief = None
+
+    if _llm_critic_enabled() and next_state.get("tickers"):
+        llm_result = run_llm_critic(next_state, deterministic)
+        if llm_result is None:
+            critic_mode = "deterministic_fallback"
+        else:
+            critic_mode = "llm"
+            semantic_enough = llm_result["semantic_enough"]
+            quality_issues = llm_result.get("quality_issues", [])
+            llm_follow_up_steps = llm_result.get("follow_up_steps", [])
+            reasoning_brief = llm_result.get("reasoning_brief")
+
+    enough_evidence = deterministic["enough_evidence"]
+    if semantic_enough is False:
+        enough_evidence = False
+
+    confidence = deterministic["confidence"]
+    if semantic_enough is False:
+        confidence = "Low"
+    elif quality_issues and confidence == "High":
+        confidence = "Medium"
+
+    critic_result = dict(deterministic)
+    critic_result["enough_evidence"] = enough_evidence
+    critic_result["semantic_enough"] = semantic_enough
+    critic_result["quality_issues"] = quality_issues
+    critic_result["llm_follow_up_steps"] = llm_follow_up_steps
+    critic_result["confidence"] = confidence
+
+    next_state["critic_result"] = critic_result
     next_state["confidence"] = confidence
+    next_state["metadata"]["critic_mode"] = critic_mode
+    next_state["metadata"]["critic_reasoning_brief"] = reasoning_brief
 
     return next_state

@@ -1,6 +1,8 @@
 import unittest
 
 from app.prompts.critic_prompt import build_critic_system_prompt, build_critic_user_instructions
+from app.prompts.decision_prompt import build_decision_system_prompt, build_decision_user_instructions
+from app.prompts.planner_prompt import build_planner_system_prompt, build_planner_user_instructions
 from app.prompts.research_prompt import build_research_system_prompt, build_research_user_instructions
 from app.skills.schema import format_skill_schema, get_skill_schema
 
@@ -40,6 +42,22 @@ class PromptSchemaTests(unittest.TestCase):
     def test_prompt_instruction_lists_are_non_empty(self):
         self.assertTrue(build_research_user_instructions())
         self.assertTrue(build_critic_user_instructions())
+        self.assertTrue(build_planner_user_instructions())
+        self.assertTrue(build_decision_user_instructions())
+
+    def test_planner_prompt_mentions_json_and_schema_fields(self):
+        prompt = build_planner_system_prompt()
+
+        self.assertIn("return JSON only", prompt)
+        self.assertIn("Allowed intent values", prompt)
+        self.assertIn("Return exactly these fields", prompt)
+
+    def test_decision_prompt_mentions_json_and_allowed_output_shapes(self):
+        prompt = build_decision_system_prompt()
+
+        self.assertIn("Return JSON only", prompt)
+        self.assertIn("single-stock decisions return", prompt)
+        self.assertIn("comparison decisions return", prompt)
 
 
 if __name__ == "__main__":

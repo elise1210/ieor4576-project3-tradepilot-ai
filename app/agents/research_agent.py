@@ -48,6 +48,29 @@ def _store_ticker_evidence(next_state: dict, evidence_type: str, ticker: str, pa
     evidence_bucket[ticker] = payload
 
 
+def _store_chart_evidence(next_state: dict, ticker: str, payload: dict) -> None:
+    charts = next_state["evidence"].setdefault("charts", [])
+    chart_id = payload.get("chart_id")
+    chart_kind = payload.get("kind")
+
+    filtered = []
+    for existing in charts:
+        if not isinstance(existing, dict):
+            filtered.append(existing)
+            continue
+
+        same_ticker = existing.get("ticker") == ticker
+        same_chart_id = chart_id and existing.get("chart_id") == chart_id
+        same_kind = chart_kind and existing.get("kind") == chart_kind
+
+        if same_ticker and (same_chart_id or same_kind):
+            continue
+        filtered.append(existing)
+
+    filtered.append(payload)
+    next_state["evidence"]["charts"] = filtered
+
+
 def _build_ticker_evidence_bundle(state: dict, ticker: str) -> dict:
     evidence = state.get("evidence", {})
     bundle = {}
@@ -196,7 +219,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
         if _empty_evidence_result(result):
             _set_gap(next_state, f"missing_evidence:chart:{ticker}")
             return
-        next_state["evidence"]["charts"].append(result)
+        _store_chart_evidence(next_state, ticker, result)
         next_state["metadata"]["executed_research_steps"].append(step)
 
 

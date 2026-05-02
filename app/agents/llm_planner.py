@@ -6,6 +6,11 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
+from app.prompts.planner_prompt import (
+    build_planner_system_prompt,
+    build_planner_user_instructions,
+)
+
 
 load_dotenv()
 
@@ -135,16 +140,7 @@ def run_llm_planner(
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You are a planner for a stock-analysis app. "
-                    "Interpret the user query and return JSON only. "
-                    "Do not answer the question itself. "
-                    "Allowed intent values: buy_sell_decision, comparison, explanation, general_research. "
-                    "Allowed time_horizon values: short_term, long_term, unknown. "
-                    "Return fields: intent, tickers, time_horizon, needs_human, "
-                    "clarification_question, ticker_source, ticker_inference_confidence, reasoning_brief. "
-                    "tickers must be uppercase ticker symbols when known."
-                ),
+                "content": build_planner_system_prompt(),
             },
             {
                 "role": "user",
@@ -153,13 +149,7 @@ def run_llm_planner(
                         "query": query,
                         "provided_ticker": provided_ticker,
                         "known_company_map": known_companies,
-                        "instructions": [
-                            "Infer the most likely stock-analysis intent.",
-                            "Infer one or more tickers if the company reference is clear.",
-                            "Set needs_human true only when clarification is genuinely needed.",
-                            "Use clarification_question only if needs_human is true.",
-                            "If no ticker can be inferred, return an empty tickers list.",
-                        ],
+                        "instructions": build_planner_user_instructions(),
                     },
                     ensure_ascii=True,
                 ),
