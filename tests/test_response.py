@@ -64,6 +64,7 @@ class ResponseLayerTests(unittest.TestCase):
 
     def test_format_pipeline_answer_includes_caution_notes(self):
         state = build_initial_state("Should I buy Apple this week?")
+        state["intent"] = "buy_sell_decision"
         state["tickers"] = ["AAPL"]
         state["decision"] = {
             "ticker": "AAPL",
@@ -80,6 +81,31 @@ class ResponseLayerTests(unittest.TestCase):
 
         self.assertIn("Caution:", answer)
         self.assertIn("Informational only.", answer)
+
+    def test_format_pipeline_answer_returns_research_summary_for_explanation_intent(self):
+        state = build_initial_state("Summarize Nvidia news from yesterday")
+        state["intent"] = "explanation"
+        state["tickers"] = ["NVDA"]
+        state["evidence"]["news"]["NVDA"] = {
+            "summary": "NVDA news focused on China-related AI chip restrictions and data-center demand."
+        }
+        state["evidence"]["market"]["NVDA"] = {
+            "trend_label": "sideways",
+            "trend_7d": -0.006,
+        }
+        state["evidence"]["fundamentals"]["NVDA"] = {
+            "summary": "NVIDIA remains a mega-cap semiconductor company with elevated beta."
+        }
+        state["critic_result"] = {
+            "supporting_missing": ["sentiment:NVDA"],
+        }
+
+        answer = format_pipeline_answer(state)
+
+        self.assertIn("NVDA news focused on China-related AI chip restrictions", answer)
+        self.assertIn("Recent market context:", answer)
+        self.assertIn("Company context:", answer)
+        self.assertIn("Some supporting evidence was unavailable: sentiment.", answer)
 
 
 if __name__ == "__main__":

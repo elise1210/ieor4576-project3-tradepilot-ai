@@ -8,6 +8,7 @@ from app.state import build_initial_state
 
 
 SkillRegistry = Dict[str, Callable]
+DECISION_INTENTS = {"buy_sell_decision", "comparison"}
 
 
 def run_tradepilot_pipeline(
@@ -49,8 +50,11 @@ def run_tradepilot_pipeline(
         state["metadata"]["iterations_used"] = iteration + 1
 
         if state.get("critic_result", {}).get("enough_evidence"):
-            state = run_decision_agent(state)
-            state["metadata"]["stopped_reason"] = "decision_completed"
+            if state.get("intent") in DECISION_INTENTS:
+                state = run_decision_agent(state)
+                state["metadata"]["stopped_reason"] = "decision_completed"
+            else:
+                state["metadata"]["stopped_reason"] = "research_completed"
             return state
 
     state["metadata"]["stopped_reason"] = "iteration_budget_exhausted"

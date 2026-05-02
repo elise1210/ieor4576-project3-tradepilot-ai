@@ -29,6 +29,66 @@ def apply_compliance_to_state(state: dict) -> dict:
     return next_state
 
 
+def _first_ticker(state: dict) -> str:
+    tickers = list(state.get("tickers", []))
+    return tickers[0] if tickers else ""
+
+
+def _format_research_answer(state: dict) -> str:
+    ticker = _first_ticker(state)
+    evidence = state.get("evidence", {})
+    news = evidence.get("news", {}).get(ticker, {})
+    market = evidence.get("market", {}).get(ticker, {})
+    fundamentals = evidence.get("fundamentals", {}).get(ticker, {})
+    critic_result = state.get("critic_result", {})
+
+    lines = []
+
+    news_summary = news.get("summary")
+    if news_summary:
+        lines.append(news_summary)
+
+    trend_label = market.get("trend_label")
+    trend_score = market.get("trend_7d")
+    if trend_label or trend_score is not None:
+        if trend_score is None:
+            lines.extend([
+                "",
+                f"Recent market context: trend is {trend_label}.",
+            ])
+        else:
+            lines.extend([
+                "",
+                f"Recent market context: trend is {trend_label} with 7-day movement {float(trend_score):+.2%}.",
+            ])
+
+    fundamentals_summary = fundamentals.get("summary")
+    if fundamentals_summary:
+        lines.extend([
+            "",
+            f"Company context: {fundamentals_summary}",
+        ])
+
+    supporting_missing = critic_result.get("supporting_missing", [])
+    if supporting_missing:
+        readable = []
+        for item in supporting_missing:
+            if ":" in item:
+                readable.append(item.split(":", 1)[0])
+            else:
+                readable.append(item)
+        lines.extend([
+            "",
+            "Caution:",
+            "- Some supporting evidence was unavailable: " + ", ".join(sorted(set(readable))) + ".",
+        ])
+
+    if not lines:
+        return "I collected evidence, but I do not yet have a clean research summary to return."
+
+    return "\n".join(lines).strip()
+
+
 def format_pipeline_answer(state: dict) -> str:
     guardrails = state.get("guardrails", {})
     if guardrails.get("out_of_scope"):
@@ -36,6 +96,9 @@ def format_pipeline_answer(state: dict) -> str:
 
     if state.get("needs_human"):
         return state.get("clarification_question") or "More information is needed."
+
+    if state.get("intent") not in {"buy_sell_decision", "comparison"}:
+        return _format_research_answer(state)
 
     decision = state.get("decision") or {}
     if not decision:

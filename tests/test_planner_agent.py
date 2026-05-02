@@ -93,6 +93,16 @@ class PlannerAgentTests(unittest.TestCase):
 
         self.assertNotIn("chart", result["plan"]["required_evidence"])
 
+    @patch.dict("os.environ", {"USE_LLM_PLANNER": "false"}, clear=False)
+    def test_news_summary_query_is_classified_as_explanation(self):
+        state = build_initial_state("Summarize Nvidia news from yesterday")
+
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "explanation")
+        self.assertEqual(result["tickers"], ["NVDA"])
+        self.assertFalse(result["needs_human"])
+
     @patch.dict(
         "os.environ",
         {

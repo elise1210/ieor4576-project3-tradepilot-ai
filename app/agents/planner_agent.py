@@ -46,6 +46,16 @@ EXPLICIT_TICKER_STOPWORDS = {
 COMPARISON_KEYWORDS = ("compare", "versus", "vs", "better than")
 BUY_SELL_KEYWORDS = ("buy", "sell", "hold", "should i buy", "should i sell")
 EXPLANATION_KEYWORDS = ("why", "what happened", "explain", "summarize")
+SUMMARY_RESEARCH_KEYWORDS = (
+    "summary",
+    "summarize",
+    "news",
+    "headline",
+    "headlines",
+    "update",
+    "updates",
+    "developments",
+)
 FINANCE_CONTEXT_KEYWORDS = (
     "stock",
     "stocks",
@@ -94,6 +104,21 @@ def classify_intent(query: str) -> str:
     if any(keyword in text for keyword in EXPLANATION_KEYWORDS):
         return "explanation"
     return "general_research"
+
+
+def refine_intent(query: str, intent: str) -> str:
+    text = (query or "").strip().lower()
+
+    if intent in {"buy_sell_decision", "comparison"}:
+        return intent
+
+    if any(keyword in text for keyword in EXPLANATION_KEYWORDS):
+        return "explanation"
+
+    if any(keyword in text for keyword in SUMMARY_RESEARCH_KEYWORDS):
+        return "explanation"
+
+    return intent
 
 
 def infer_time_horizon(query: str) -> str:
@@ -299,6 +324,7 @@ def _run_deterministic_planner(state: dict) -> dict:
     provided_ticker = state.get("user_inputs", {}).get("provided_ticker")
 
     intent = classify_intent(query)
+    intent = refine_intent(query, intent)
     tickers, ticker_source, confidence = infer_tickers(query, provided_ticker)
     time_horizon = infer_time_horizon(query)
 
@@ -348,7 +374,7 @@ def run_planner_agent(state: dict) -> dict:
 
     return _apply_planner_result(
         state=state,
-        intent=llm_result["intent"],
+        intent=refine_intent(query, llm_result["intent"]),
         tickers=llm_result["tickers"],
         time_horizon=llm_result["time_horizon"],
         ticker_source=llm_result["ticker_source"],

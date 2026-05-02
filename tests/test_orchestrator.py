@@ -89,6 +89,22 @@ class OrchestratorTests(unittest.TestCase):
         self.assertFalse(result["critic_result"]["enough_evidence"])
         self.assertIsNone(result["decision"])
 
+    def test_orchestrator_completes_research_without_decision_for_explanation_intent(self):
+        result = run_tradepilot_pipeline(
+            query="Summarize Nvidia news from yesterday",
+            skills={
+                "news": fake_news_skill,
+                "market": fake_market_skill,
+                "fundamentals": fake_fundamentals_skill,
+            },
+        )
+
+        self.assertEqual(result["intent"], "explanation")
+        self.assertEqual(result["metadata"]["stopped_reason"], "research_completed")
+        self.assertEqual(result["metadata"]["iterations_used"], 1)
+        self.assertTrue(result["critic_result"]["enough_evidence"])
+        self.assertIsNone(result["decision"])
+
 
 if __name__ == "__main__":
     unittest.main()
