@@ -168,6 +168,35 @@ class ResearchAgentTests(unittest.TestCase):
             "What is AAPL stock price today?",
         )
 
+    def test_research_agent_builds_chart_from_existing_state_evidence(self):
+        state = build_initial_state("What is AAPL stock price today?")
+        state["tickers"] = ["AAPL"]
+        state["plan"]["required_evidence"] = ["chart"]
+        state["evidence"]["market"]["AAPL"] = {
+            "ticker": "AAPL",
+            "history": [
+                {"date": "2026-04-30", "close": 218.70},
+                {"date": "2026-05-01", "close": 220.00},
+            ],
+        }
+
+        result = run_research_agent(
+            state,
+            skills={
+                "chart": fake_chart_skill,
+            },
+        )
+
+        self.assertEqual(result["gaps"], [])
+        self.assertEqual(len(result["evidence"]["charts"]), 1)
+        self.assertEqual(
+            result["evidence"]["charts"][0]["charts"][0]["data"],
+            [
+                {"date": "2026-04-30", "close": 218.70},
+                {"date": "2026-05-01", "close": 220.00},
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

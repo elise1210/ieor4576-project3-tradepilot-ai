@@ -40,6 +40,18 @@ def _store_ticker_evidence(next_state: dict, evidence_type: str, ticker: str, pa
     evidence_bucket[ticker] = payload
 
 
+def _build_ticker_evidence_bundle(state: dict, ticker: str) -> dict:
+    evidence = state.get("evidence", {})
+    bundle = {}
+
+    for evidence_type in ("news", "market", "fundamentals", "sentiment"):
+        payload = evidence.get(evidence_type, {}).get(ticker)
+        if isinstance(payload, dict) and payload:
+            bundle[evidence_type] = payload
+
+    return bundle
+
+
 def _get_required_evidence(state: dict) -> list[str]:
     return list(state.get("plan", {}).get("required_evidence", []))
 
@@ -94,8 +106,6 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
     next_state["gaps"] = []
 
     for ticker in tickers:
-        ticker_bundle = {}
-
         if "news" in required_evidence:
             news_skill = registry.get("news")
             if news_skill is None:
@@ -106,7 +116,6 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
                     _set_gap(next_state, f"missing_evidence:news:{ticker}")
                 else:
                     _store_ticker_evidence(next_state, "news", ticker, news_result)
-                    ticker_bundle["news"] = news_result
 
         if "market" in required_evidence:
             market_skill = registry.get("market")
@@ -118,7 +127,6 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
                     _set_gap(next_state, f"missing_evidence:market:{ticker}")
                 else:
                     _store_ticker_evidence(next_state, "market", ticker, market_result)
-                    ticker_bundle["market"] = market_result
 
         if "fundamentals" in required_evidence:
             fundamentals_skill = registry.get("fundamentals")
@@ -130,7 +138,6 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
                     _set_gap(next_state, f"missing_evidence:fundamentals:{ticker}")
                 else:
                     _store_ticker_evidence(next_state, "fundamentals", ticker, fundamentals_result)
-                    ticker_bundle["fundamentals"] = fundamentals_result
 
         if "sentiment" in required_evidence:
             sentiment_skill = registry.get("sentiment")
@@ -145,13 +152,13 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
                     _set_gap(next_state, f"missing_evidence:sentiment:{ticker}")
                 else:
                     _store_ticker_evidence(next_state, "sentiment", ticker, sentiment_result)
-                    ticker_bundle["sentiment"] = sentiment_result
 
         if "chart" in required_evidence:
             chart_skill = registry.get("chart")
             if chart_skill is None:
                 _set_gap(next_state, f"missing_skill:chart:{ticker}")
             else:
+                ticker_bundle = _build_ticker_evidence_bundle(next_state, ticker)
                 chart_result = _run_chart_skill(chart_skill, ticker, ticker_bundle, query)
                 if _empty_evidence_result(chart_result):
                     _set_gap(next_state, f"missing_evidence:chart:{ticker}")
