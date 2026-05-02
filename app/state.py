@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Optional
 
 
-DEFAULT_MAX_ITERATIONS = 2
+DEFAULT_MAX_ITERATIONS = 3
 
 
 def build_initial_state(query: str, ticker: Optional[str] = None) -> dict:

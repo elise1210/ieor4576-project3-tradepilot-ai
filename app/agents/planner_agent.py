@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from app.agents.llm_planner import run_llm_planner
 from app.skills.chart import should_show_chart_for_query
-from app.state import clone_state
+from app.state import DEFAULT_MAX_ITERATIONS, clone_state
 
 
 load_dotenv()
@@ -216,7 +216,7 @@ def build_task_plan(intent: str, query: str = "") -> dict:
 
     return {
         "required_evidence": required,
-        "max_iterations": 2,
+        "max_iterations": DEFAULT_MAX_ITERATIONS,
     }
 
 
