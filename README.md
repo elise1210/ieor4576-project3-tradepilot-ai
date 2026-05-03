@@ -313,6 +313,7 @@ Important metadata fields include:
 - `decision_reasoning_brief`
 - `research_plan_steps`
 - `executed_research_steps`
+- `all_executed_research_steps`
 - `iterations_used`
 - `stopped_reason`
 
@@ -392,6 +393,8 @@ FastAPI app:
 
 - `GET /health`
 - `POST /chat`
+- `POST /chat/start`
+- `POST /chat/resume`
 
 ### Request Body
 
@@ -510,7 +513,23 @@ Run the benchmark eval test set:
 python -m unittest tests.evals.test_benchmark_eval -v
 ```
 
-The benchmark suite is built from fixed query cases in [tests/evals/benchmark_cases.py](tests/evals/benchmark_cases.py) and scored by pure logic in [tests/evals/benchmark_eval.py](tests/evals/benchmark_eval.py). It evaluates the pipeline against structured ground truth rather than free-form answer wording.
+The benchmark layer is built from two fixed suites and scored by pure logic in [tests/evals/benchmark_eval.py](tests/evals/benchmark_eval.py). It evaluates the pipeline against structured ground truth rather than free-form answer wording.
+
+- `V1` core regression benchmark: [tests/evals/benchmark_cases.py](tests/evals/benchmark_cases.py)
+- `V2` harder stress benchmark: [tests/evals/benchmark_cases_v2.py](tests/evals/benchmark_cases_v2.py)
+
+Save benchmark snapshots:
+
+```powershell
+python -m tests.evals.save_benchmark_results --mode llm --suite v1 --label your_label --note "what changed"
+python -m tests.evals.save_benchmark_results --mode llm --suite v2 --label your_label --note "what changed"
+```
+
+Benchmark results are stored under:
+
+- [tests/evals/results/deterministic/](tests/evals/results/deterministic/)
+- [tests/evals/results/llm/](tests/evals/results/llm/)
+- combined scorecard: [tests/evals/results/combined/original_vs_latest.json](tests/evals/results/combined/original_vs_latest.json)
 
 ### Benchmark Metrics
 
