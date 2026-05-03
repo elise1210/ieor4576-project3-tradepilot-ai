@@ -16,36 +16,6 @@ The system combines market data, company news, fundamentals, sentiment analysis,
   - `GET /` serves the frontend UI
   - `POST /chat`, `POST /chat/start`, and `POST /chat/resume` power the agent backend
 
-## Product Framing
-
-### User
-
-TradePilot is aimed at self-directed retail investors and finance-curious users who want fast, structured stock research without manually checking several dashboards, news sites, and charts.
-
-### Problem
-
-These users often need to combine multiple steps by hand:
-
-- look up the ticker
-- read recent company news
-- inspect short-term price movement
-- compare companies fairly
-- decide whether the available evidence is actually enough
-
-TradePilot compresses that workflow into one agent product that can clarify ambiguous questions, gather the relevant evidence, and return an informational answer with explicit caveats.
-
-### Monetization Path
-
-The clearest starting model is a subscription research tool:
-
-- free tier: limited daily questions and delayed data
-- paid tier: more queries, richer charts, faster refresh, saved analysis history
-
-The serving-cost logic fits the technical design:
-
-- hybrid deterministic paths reduce LLM spend on simple queries
-- tool outputs are structured before final synthesis
-- the critic can stop low-confidence answers instead of paying for unnecessary extra steps
 
 ## Class Concepts Used
 
@@ -86,88 +56,44 @@ The backend returns both:
 - a user-facing `answer`
 - a structured `state` object for debugging, evaluation, and demos
 
-## Current Architecture
-
-TradePilot uses 4 agents in a shared-state pipeline:
-
-```text
-User Query
-  ->
-Planner Agent
-  ->
-Research Agent
-  ->
-Critic Agent
-  ->
-Decision Agent or Research/Explanation Formatter
-```
-
-The pipeline can loop:
-
-```text
-Planner -> Research -> Critic
-                     -> enough evidence -> Decision or research-style response
-                     -> not enough -> Research again
-                     -> stop if max iteration budget is exhausted
-```
-
 ### Structure Flow Chart
 
-```text
-                                +------------------+
-                                |      User        |
-                                |  query/request   |
-                                +---------+--------+
-                                          |
-                                          v
-                                +------------------+
-                                |  Planner Agent   |
-                                | intent, ticker,  |
-                                | evidence plan    |
-                                +----+--------+----+
-                                     |        |
-                     out_of_scope    |        | needs clarification
-                                     |        v
-                                     |  +----------------------+
-                                     |  | Human In The Loop    |
-                                     |  | clarification answer |
-                                     |  +----------+-----------+
-                                     |             |
-                                     |             v
-                                     |  +----------------------+
-                                     |  | Resume / updated     |
-                                     |  | query context        |
-                                     |  +----------+-----------+
-                                     |             |
-                                     |             v
-                                     |      +-------------+
-                                     +----->|  Research   |
-                                            |    Agent    |
-                                            | tool calls  |
-                                            +------+------+
-                                                   |
-                                                   v
-                                            +-------------+
-                                            |   Critic    |
-                                            |    Agent    |
-                                            | sufficiency |
-                                            +---+-----+---+
-                                                |     |
-                         not enough evidence ----+     +---- enough evidence
-                                                |                 |
-                                                v                 v
-                                       +----------------+   +-------------+
-                                       | follow-up loop |   | Decision    |
-                                       | retry research |   | Agent       |
-                                       +--------+-------+   | final rec / |
-                                                |           | comparison   |
-                                                +---------->+------+------+ 
-                                                            |
-                                                            v
-                                                +-------------------------+
-                                                | Final answer / response |
-                                                | + charts + state trace  |
-                                                +-------------------------+
+```mermaid
+flowchart TD
+    U[User]
+    FE[Frontend / API Layer<br/>/ , /chat, /chat/start, /chat/resume]
+    S[(Shared State<br/>query, plan, evidence,<br/>critic_result, metadata)]
+
+    subgraph G[TradePilot Agent Graph]
+        P[Planner Agent<br/>intent classification<br/>ticker inference<br/>evidence plan]
+        H[Human In The Loop<br/>clarification response]
+        R[Research Agent<br/>tool execution<br/>news / market / fundamentals<br/>sentiment / chart]
+        C[Critic Agent<br/>structural checks<br/>semantic sufficiency<br/>follow-up steps]
+        D[Decision Agent<br/>recommendation / comparison<br/>confidence and risk]
+        X[Research / Explanation Formatter]
+        O[Out-of-Scope Stop]
+        E[Iteration Budget Exhausted]
+    end
+
+    A[Final Answer<br/>charts + explanation + safe state]
+
+    U --> FE --> P
+    P <--> S
+    R <--> S
+    C <--> S
+    D <--> S
+    X <--> S
+    H <--> S
+
+    P -->|out_of_scope| O --> A
+    P -->|needs clarification| H -->|resume with user input| R
+    P -->|research path| R
+
+    R --> C
+    C -->|not enough evidence| R
+    C -->|enough evidence for decision flow| D --> A
+    C -->|enough evidence for explanation flow| X --> A
+    C -->|max iterations reached| E --> A
 ```
 
 ### Default Iteration Budget
@@ -749,47 +675,6 @@ tradepilot-ai/
 `-- cloudbuild.yaml
 ```
 
-## Current Limitations
-
-- The system is still an informational demo, not a production financial assistant.
-- The explanation flow can still exhaust the iteration budget before gathering enough evidence.
-- The critic can now emit structured retry steps, but output quality still depends on prompt quality and available evidence.
-- News quality depends on provider coverage and article relevance.
-- Sentiment is article-based and can be noisy when article counts are low.
-
-## Recommended Next Steps
-
-The architecture is now in a strong state. The next high-value work is:
-
-1. evaluation and calibration on a fixed benchmark query set
-2. better observability and debug summaries in the API
-3. prompt tuning based on retry miss cases
-4. frontend work to visualize charts, evidence flow, and agent trace
-5. optional caching and performance improvements for repeated runs
-
-## Teammate Handoff
-
-If a teammate is picking up the next phase of the project, the best immediate focus is:
-
-1. Evaluation work
-   - build a small benchmark set of representative queries
-   - compare first-pass answers vs retry-pass answers
-   - inspect failure cases where the critic still stops with thin evidence
-   - track how often hybrid agents use LLM mode vs deterministic fallback
-
-2. Frontend work
-   - render the `charts` output cleanly
-   - show a compact explanation of the final answer
-   - optionally expose key debug metadata such as:
-     - `planner_mode`
-     - `research_mode`
-     - `critic_mode`
-     - `decision_mode`
-     - `iterations_used`
-     - `stopped_reason`
-   - make the research/evidence flow easier to understand visually
-
-This split is a good next step because the backend reasoning loop is now in a solid place, and the project will benefit most from better evaluation coverage and a clearer user experience.
 
 ## Disclaimer
 
