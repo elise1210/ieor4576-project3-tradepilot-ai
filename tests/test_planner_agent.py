@@ -185,6 +185,42 @@ class PlannerAgentTests(unittest.TestCase):
         clear=True,
     )
     @patch("app.agents.llm_planner.urllib.request.urlopen")
+    def test_llm_planner_does_not_clarify_when_query_already_contains_time_info(self, mock_urlopen):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return (
+                    b'{"choices":[{"message":{"content":"{\\"intent\\":\\"buy_sell_decision\\",\\"tickers\\":[\\"AAPL\\"],\\"time_horizon\\":\\"unknown\\",\\"needs_human\\":true,\\"clarification_question\\":\\"Do you want a short-term trading view or a longer-term investment view?\\",\\"clarification_type\\":\\"time_horizon\\",\\"clarification_options\\":[{\\"label\\":\\"Short-term\\",\\"value\\":\\"short_term\\"},{\\"label\\":\\"Long-term\\",\\"value\\":\\"long_term\\"}],\\"ticker_source\\":\\"llm_inference\\",\\"ticker_inference_confidence\\":\\"medium\\",\\"reasoning_brief\\":\\"Apple was inferred but the horizon was left unresolved.\\"}"}}]}'
+                )
+
+        mock_urlopen.return_value = FakeResponse()
+
+        state = build_initial_state("Should I buy Apple today?")
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "buy_sell_decision")
+        self.assertEqual(result["tickers"], ["AAPL"])
+        self.assertEqual(result["time_horizon"], "short_term")
+        self.assertFalse(result["needs_human"])
+        self.assertIsNone(result["clarification_question"])
+        self.assertIsNone(result["clarification_type"])
+        self.assertEqual(result["clarification_options"], [])
+
+    @patch.dict(
+        "os.environ",
+        {
+            "USE_LLM_PLANNER": "true",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_PLANNER_MODEL": "gpt-4o-mini",
+        },
+        clear=True,
+    )
+    @patch("app.agents.llm_planner.urllib.request.urlopen")
     def test_llm_planner_falls_back_to_deterministic_on_invalid_json(self, mock_urlopen):
         class FakeResponse:
             def __enter__(self):

@@ -1,8 +1,10 @@
+import os
 from typing import Callable, Dict, Optional
 
 from app.agents.critic_agent import run_critic_agent
 from app.agents.decision_agent import run_decision_agent
 from app.agents.planner_agent import run_planner_agent
+from app.graph.tradepilot_graph import run_tradepilot_graph
 from app.agents.research_agent import run_research_agent
 from app.state import build_initial_state
 
@@ -11,7 +13,7 @@ SkillRegistry = Dict[str, Callable]
 DECISION_INTENTS = {"buy_sell_decision", "comparison"}
 
 
-def run_tradepilot_pipeline(
+def _run_tradepilot_pipeline_custom(
     query: str,
     ticker: Optional[str] = None,
     skills: Optional[SkillRegistry] = None,
@@ -59,3 +61,48 @@ def run_tradepilot_pipeline(
 
     state["metadata"]["stopped_reason"] = "iteration_budget_exhausted"
     return state
+
+
+def _langgraph_enabled() -> bool:
+    value = os.getenv("USE_LANGGRAPH")
+    if value is not None:
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return True
+
+
+def _run_tradepilot_pipeline_graph(
+    query: str,
+    ticker: Optional[str] = None,
+    skills: Optional[SkillRegistry] = None,
+    max_iterations: Optional[int] = None,
+) -> dict:
+    state = build_initial_state(query=query, ticker=ticker)
+    metadata = state.setdefault("metadata", {})
+    if max_iterations is not None:
+        metadata["requested_max_iterations"] = max_iterations
+    return run_tradepilot_graph(state, skills=skills)
+
+
+def run_tradepilot_pipeline(
+    query: str,
+    ticker: Optional[str] = None,
+    skills: Optional[SkillRegistry] = None,
+    max_iterations: Optional[int] = None,
+) -> dict:
+    if _langgraph_enabled():
+        try:
+            return _run_tradepilot_pipeline_graph(
+                query=query,
+                ticker=ticker,
+                skills=skills,
+                max_iterations=max_iterations,
+            )
+        except ImportError:
+            pass
+
+    return _run_tradepilot_pipeline_custom(
+        query=query,
+        ticker=ticker,
+        skills=skills,
+        max_iterations=max_iterations,
+    )

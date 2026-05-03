@@ -438,6 +438,7 @@ def run_planner_agent(state: dict) -> dict:
 
     query = state.get("query", "")
     provided_ticker = state.get("user_inputs", {}).get("provided_ticker")
+    deterministic_time_horizon = infer_time_horizon(query)
     llm_result = run_llm_planner(
         query=query,
         provided_ticker=provided_ticker,
@@ -449,29 +450,41 @@ def run_planner_agent(state: dict) -> dict:
         fallback_state["metadata"]["planner_mode"] = "deterministic_fallback"
         return fallback_state
 
+    time_horizon = llm_result["time_horizon"]
+    if deterministic_time_horizon != "unknown" and time_horizon == "unknown":
+        time_horizon = deterministic_time_horizon
+
+    needs_human = bool(llm_result.get("needs_human"))
     clarification_question = llm_result.get("clarification_question")
     clarification_type = llm_result.get("clarification_type")
     clarification_options = llm_result.get("clarification_options")
-    if llm_result.get("needs_human") and clarification_question is None:
+
+    if deterministic_time_horizon != "unknown" and refine_intent(query, llm_result["intent"]) == "buy_sell_decision":
+        needs_human = False
+        clarification_question = None
+        clarification_type = None
+        clarification_options = []
+
+    if needs_human and clarification_question is None:
         clarification_question = build_clarification_question(
             llm_result["intent"],
             llm_result["tickers"],
-            llm_result["time_horizon"],
+            time_horizon,
         )
-    if llm_result.get("needs_human") and clarification_type is None:
+    if needs_human and clarification_type is None:
         clarification_type = build_clarification_type(
             llm_result["intent"],
             llm_result["tickers"],
-            llm_result["time_horizon"],
+            time_horizon,
         )
-    if llm_result.get("needs_human") and clarification_options is None:
+    if needs_human and clarification_options is None:
         clarification_options = build_clarification_options(clarification_type)
 
     return _apply_planner_result(
         state=state,
         intent=refine_intent(query, llm_result["intent"]),
         tickers=llm_result["tickers"],
-        time_horizon=llm_result["time_horizon"],
+        time_horizon=time_horizon,
         ticker_source=llm_result["ticker_source"],
         confidence=llm_result["ticker_inference_confidence"],
         clarification_question=clarification_question,
