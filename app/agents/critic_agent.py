@@ -27,6 +27,10 @@ def _required_without_chart(state: dict) -> list[str]:
     return [item for item in _required_evidence(state) if item != "chart"]
 
 
+def _requires_evidence_type(state: dict, evidence_type: str) -> bool:
+    return evidence_type in set(_required_without_chart(state))
+
+
 def _usable_for(state: dict, evidence_type: str, ticker: str) -> bool:
     payload = state.get("evidence", {}).get(evidence_type, {}).get(ticker, {})
     return _has_usable_payload(payload)
@@ -46,22 +50,17 @@ def _single_ticker_missing_breakdown(state: dict) -> tuple[list[str], list[str]]
     has_sentiment = _usable_for(state, "sentiment", ticker)
     has_fundamentals = _usable_for(state, "fundamentals", ticker)
 
-    if not has_market:
+    if _requires_evidence_type(state, "market") and not has_market:
         blocking_missing.append(f"market:{ticker}")
 
-    if not (has_news or has_sentiment):
-        if not has_news:
-            blocking_missing.append(f"news:{ticker}")
-        if not has_sentiment:
-            blocking_missing.append(f"sentiment:{ticker}")
-    else:
-        if not has_news:
-            supporting_missing.append(f"news:{ticker}")
-        if not has_sentiment:
-            supporting_missing.append(f"sentiment:{ticker}")
+    if _requires_evidence_type(state, "news") and not has_news:
+        blocking_missing.append(f"news:{ticker}")
 
-    if not has_fundamentals:
-        supporting_missing.append(f"fundamentals:{ticker}")
+    if _requires_evidence_type(state, "sentiment") and not has_sentiment:
+        blocking_missing.append(f"sentiment:{ticker}")
+
+    if _requires_evidence_type(state, "fundamentals") and not has_fundamentals:
+        blocking_missing.append(f"fundamentals:{ticker}")
 
     return blocking_missing, supporting_missing
 
@@ -77,22 +76,17 @@ def _comparison_missing_breakdown(state: dict) -> tuple[list[str], list[str]]:
         has_sentiment = _usable_for(state, "sentiment", ticker)
         has_fundamentals = _usable_for(state, "fundamentals", ticker)
 
-        if not has_market:
+        if _requires_evidence_type(state, "market") and not has_market:
             blocking_missing.append(f"market:{ticker}")
 
-        if not (has_news or has_sentiment):
-            if not has_news:
-                blocking_missing.append(f"news:{ticker}")
-            if not has_sentiment:
-                blocking_missing.append(f"sentiment:{ticker}")
-        else:
-            if not has_news:
-                supporting_missing.append(f"news:{ticker}")
-            if not has_sentiment:
-                supporting_missing.append(f"sentiment:{ticker}")
+        if _requires_evidence_type(state, "news") and not has_news:
+            blocking_missing.append(f"news:{ticker}")
 
-        if not has_fundamentals:
-            supporting_missing.append(f"fundamentals:{ticker}")
+        if _requires_evidence_type(state, "sentiment") and not has_sentiment:
+            blocking_missing.append(f"sentiment:{ticker}")
+
+        if _requires_evidence_type(state, "fundamentals") and not has_fundamentals:
+            blocking_missing.append(f"fundamentals:{ticker}")
 
     return blocking_missing, supporting_missing
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 from typing import Iterable
 from unittest.mock import patch
 
 from app.orchestrator import run_tradepilot_pipeline
 
 from tests.evals.benchmark_cases import BENCHMARK_CASES, FAKE_SKILLS
+from tests.evals.benchmark_suites import get_benchmark_cases
 
 
 DETERMINISTIC_EVAL_ENV = {
@@ -16,6 +18,7 @@ DETERMINISTIC_EVAL_ENV = {
     "USE_LLM_CRITIC": "false",
     "USE_LLM_DECISION": "false",
 }
+RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
 def _safe_pct(numerator: int, denominator: int, empty_default: float) -> float:
@@ -25,7 +28,12 @@ def _safe_pct(numerator: int, denominator: int, empty_default: float) -> float:
 
 
 def called_tools_from_state(state: dict) -> list[str]:
-    steps = state.get("metadata", {}).get("executed_research_steps", []) or []
+    metadata = state.get("metadata", {}) or {}
+    steps = (
+        metadata.get("all_executed_research_steps")
+        or metadata.get("executed_research_steps")
+        or []
+    )
     ordered = []
     seen = set()
 
@@ -97,7 +105,6 @@ def score_case(state: dict, case: dict) -> dict:
     else:
         right_tool_call_pct = 100.0 if not called_tools else 0.0
 
-    wrong_tool_call_pct = _safe_pct(len(wrong_tools), len(called_tools), empty_default=0.0)
     evidence_coverage_pct = _safe_pct(evidence_hits, len(required_evidence), empty_default=100.0)
 
     missing_required_tools = [tool for tool in required_tools if tool not in called_tool_set]
@@ -134,9 +141,6 @@ def score_case(state: dict, case: dict) -> dict:
         "required_tool_hits": required_tool_hits,
         "required_tool_total": len(required_tools),
         "right_tool_call_pct": right_tool_call_pct,
-        "wrong_tool_hits": len(wrong_tools),
-        "called_tool_total": len(called_tools),
-        "wrong_tool_call_pct": wrong_tool_call_pct,
         "evidence_hits": evidence_hits,
         "evidence_total": len(required_evidence),
         "evidence_coverage_pct": evidence_coverage_pct,
@@ -154,8 +158,6 @@ def aggregate_case_scores(scorecards: list[dict]) -> dict:
         totals["stop_reason_correct"] += int(card["stop_reason_correct"])
         totals["required_tool_hits"] += card["required_tool_hits"]
         totals["required_tool_total"] += card["required_tool_total"]
-        totals["wrong_tool_hits"] += card["wrong_tool_hits"]
-        totals["called_tool_total"] += card["called_tool_total"]
         totals["evidence_hits"] += card["evidence_hits"]
         totals["evidence_total"] += card["evidence_total"]
         totals["case_pass"] += int(card["case_pass"])
@@ -175,11 +177,6 @@ def aggregate_case_scores(scorecards: list[dict]) -> dict:
             totals["required_tool_total"],
             empty_default=100.0,
         ),
-        "wrong_tool_call_pct": _safe_pct(
-            totals["wrong_tool_hits"],
-            totals["called_tool_total"],
-            empty_default=0.0,
-        ),
         "evidence_coverage_pct": _safe_pct(
             totals["evidence_hits"],
             totals["evidence_total"],
@@ -190,8 +187,12 @@ def aggregate_case_scores(scorecards: list[dict]) -> dict:
     }
 
 
-def run_benchmark_suite(cases: list[dict] | None = None, skills: dict | None = None) -> dict:
-    benchmark_cases = list(cases or BENCHMARK_CASES)
+def run_benchmark_suite(
+    cases: list[dict] | None = None,
+    skills: dict | None = None,
+    suite: str = "v1",
+) -> dict:
+    benchmark_cases = list(cases or get_benchmark_cases(suite))
     benchmark_skills = skills or FAKE_SKILLS
     scorecards = []
 
@@ -201,6 +202,7 @@ def run_benchmark_suite(cases: list[dict] | None = None, skills: dict | None = N
             scorecards.append(score_case(state, case))
 
     return {
+        "suite": suite,
         "cases": scorecards,
         "summary": aggregate_case_scores(scorecards),
     }
@@ -208,6 +210,7 @@ def run_benchmark_suite(cases: list[dict] | None = None, skills: dict | None = N
 
 __all__ = [
     "DETERMINISTIC_EVAL_ENV",
+    "RESULTS_DIR",
     "aggregate_case_scores",
     "called_tools_from_state",
     "evidence_present_for_case",

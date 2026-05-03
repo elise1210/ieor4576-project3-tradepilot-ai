@@ -38,8 +38,6 @@ TradePilot clearly uses these class topics:
 8. `Agents as Functions`
    Each agent is exposed as a reusable function that transforms shared state, making the pipeline easy to orchestrate and test in [app/agents/planner_agent.py](app/agents/planner_agent.py), [app/agents/research_agent.py](app/agents/research_agent.py), [app/agents/critic_agent.py](app/agents/critic_agent.py), [app/agents/decision_agent.py](app/agents/decision_agent.py), and [app/orchestrator.py](app/orchestrator.py).
 
-TradePilot does not currently implement `RAG`, `Text-to-SQL`, or `Claude Code` concepts, so they are not claimed here.
-
 ## What The System Does
 
 TradePilot currently supports:
@@ -195,9 +193,7 @@ The critic returns fields such as:
 - `quality_issues`
 - `llm_follow_up_steps`
 
-Important current behavior:
-
-- the critic can now return exact follow-up tool calls with parameters
+- the critic can return exact follow-up tool calls with parameters
 - research can execute those directly on the next loop
 
 LLM critic prompt:
@@ -322,8 +318,6 @@ Important metadata fields include:
 
 ## Retry And Follow-Up Step Flow
 
-The retry logic is now explicit.
-
 ### First Pass
 
 1. Planner decides intent and evidence categories.
@@ -355,7 +349,7 @@ This cleanly separates:
 
 ## Explanation Queries Vs Recommendation Queries
 
-The system now distinguishes between:
+The system distinguishes between:
 
 - recommendation queries
 - explanation/research queries
@@ -564,22 +558,7 @@ The current benchmark layer reports these metrics:
    (total required-tool hits across all cases / total required-tool expectations) * 100
    ```
 
-5. `Wrong Tool Call %`
-   Measures how much of the executed tool usage was explicitly wrong for the benchmark case. Lower is better.
-
-   Per-case formula:
-   ```text
-   wrong_tool_call_pct =
-   (# forbidden tools called / total # called tools) * 100
-   ```
-
-   Aggregate formula:
-   ```text
-   wrong_tool_call_pct =
-   (total forbidden-tool hits across all cases / total # called tools across all cases) * 100
-   ```
-
-6. `Evidence Coverage %`
+5. `Evidence Coverage %`
    Measures whether the final state actually contains the evidence types the case required, such as `market`, `news`, `sentiment`, `fundamentals`, or `chart`.
 
    Formula:
@@ -588,7 +567,7 @@ The current benchmark layer reports these metrics:
    (# required evidence types present / total # required evidence types) * 100
    ```
 
-7. `End-to-End Success %`
+6. `End-to-End Success %`
    Measures the percentage of benchmark cases that pass all important checks together.
 
    A case passes only if:
@@ -608,7 +587,6 @@ The current benchmark layer reports these metrics:
 ### Reading The Scores
 
 - High `Right Tool Call %` means the agent is selecting the tools it should use.
-- Low `Wrong Tool Call %` means the agent is avoiding unnecessary or inappropriate tool calls.
 - High `Evidence Coverage %` means the state ends with the evidence the benchmark expected.
 - High `End-to-End Success %` means the whole pipeline is behaving correctly on the benchmark set, not just one isolated agent.
 

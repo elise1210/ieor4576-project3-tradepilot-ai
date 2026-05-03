@@ -45,6 +45,12 @@ def _set_gap(next_state: dict, gap: str) -> None:
         gaps.append(gap)
 
 
+def _record_executed_step(next_state: dict, step: dict) -> None:
+    metadata = next_state.setdefault("metadata", {})
+    metadata.setdefault("executed_research_steps", []).append(step)
+    metadata.setdefault("all_executed_research_steps", []).append(step)
+
+
 def _store_ticker_evidence(next_state: dict, evidence_type: str, ticker: str, payload: dict) -> None:
     evidence_bucket = next_state["evidence"].setdefault(evidence_type, {})
     evidence_bucket[ticker] = payload
@@ -248,7 +254,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:news:{ticker}")
             return
         _store_ticker_evidence(next_state, "news", ticker, result)
-        next_state["metadata"]["executed_research_steps"].append(step)
+        _record_executed_step(next_state, step)
         return
 
     if skill_name == "market":
@@ -261,7 +267,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:market:{ticker}")
             return
         _store_ticker_evidence(next_state, "market", ticker, result)
-        next_state["metadata"]["executed_research_steps"].append(step)
+        _record_executed_step(next_state, step)
         return
 
     if skill_name == "fundamentals":
@@ -274,7 +280,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:fundamentals:{ticker}")
             return
         _store_ticker_evidence(next_state, "fundamentals", ticker, result)
-        next_state["metadata"]["executed_research_steps"].append(step)
+        _record_executed_step(next_state, step)
         return
 
     if skill_name == "sentiment":
@@ -291,7 +297,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:sentiment:{ticker}")
             return
         _store_ticker_evidence(next_state, "sentiment", ticker, result)
-        next_state["metadata"]["executed_research_steps"].append(step)
+        _record_executed_step(next_state, step)
         return
 
     if skill_name == "chart":
@@ -305,7 +311,7 @@ def _execute_skill_step(next_state: dict, registry: SkillRegistry, query: str, s
             _set_gap(next_state, f"missing_evidence:chart:{ticker}")
             return
         _store_chart_evidence(next_state, ticker, result)
-        next_state["metadata"]["executed_research_steps"].append(step)
+        _record_executed_step(next_state, step)
 
 
 def _build_default_research_steps(state: dict) -> list[dict]:
@@ -426,6 +432,7 @@ def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> d
     registry = skills or {}
 
     next_state["gaps"] = []
+    next_state["metadata"].setdefault("all_executed_research_steps", [])
     next_state["metadata"]["executed_research_steps"] = []
     steps, research_mode, reasoning_brief = _build_research_steps(next_state)
     next_state["metadata"]["research_mode"] = research_mode

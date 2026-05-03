@@ -37,12 +37,12 @@ class CriticAgentTests(unittest.TestCase):
 
         result = run_critic_agent(state)
 
-        self.assertTrue(result["critic_result"]["enough_evidence"])
+        self.assertFalse(result["critic_result"]["enough_evidence"])
         self.assertIn("fundamentals:AAPL", result["critic_result"]["missing"])
-        self.assertEqual(result["critic_result"]["blocking_missing"], [])
-        self.assertIn("fundamentals:AAPL", result["critic_result"]["supporting_missing"])
+        self.assertIn("fundamentals:AAPL", result["critic_result"]["blocking_missing"])
+        self.assertEqual(result["critic_result"]["supporting_missing"], [])
         self.assertIn("collect_fundamentals:AAPL", result["critic_result"]["follow_up_tasks"])
-        self.assertEqual(result["critic_result"]["confidence"], "Medium")
+        self.assertEqual(result["critic_result"]["confidence"], "Low")
 
     @patch.dict("os.environ", {"USE_LLM_CRITIC": "false"}, clear=False)
     def test_critic_blocks_single_ticker_when_market_missing(self):
@@ -84,6 +84,33 @@ class CriticAgentTests(unittest.TestCase):
         self.assertTrue(result["critic_result"]["enough_evidence"])
         self.assertIn("trend_vs_sentiment:AAPL", result["critic_result"]["conflicts"])
         self.assertEqual(result["critic_result"]["confidence"], "Medium")
+
+    @patch.dict("os.environ", {"USE_LLM_CRITIC": "false"}, clear=False)
+    def test_critic_respects_sentiment_query_required_evidence(self):
+        state = build_initial_state("What was the sentiment of Nvidia on 2026-04-02")
+        state["tickers"] = ["NVDA"]
+        state["plan"]["required_evidence"] = ["news", "sentiment"]
+        state["evidence"]["news"]["NVDA"] = {"summary": "NVDA news."}
+        state["evidence"]["sentiment"]["NVDA"] = {"sentiment": "positive", "score": 0.4}
+
+        result = run_critic_agent(state)
+
+        self.assertTrue(result["critic_result"]["enough_evidence"])
+        self.assertEqual(result["critic_result"]["missing"], [])
+        self.assertEqual(result["critic_result"]["blocking_missing"], [])
+
+    @patch.dict("os.environ", {"USE_LLM_CRITIC": "false"}, clear=False)
+    def test_critic_respects_price_query_required_evidence(self):
+        state = build_initial_state("What is AAPL stock price today?")
+        state["tickers"] = ["AAPL"]
+        state["plan"]["required_evidence"] = ["market", "chart"]
+        state["evidence"]["market"]["AAPL"] = {"trend_label": "upward", "trend_7d": 0.01}
+
+        result = run_critic_agent(state)
+
+        self.assertTrue(result["critic_result"]["enough_evidence"])
+        self.assertEqual(result["critic_result"]["missing"], [])
+        self.assertEqual(result["critic_result"]["blocking_missing"], [])
 
     @patch.dict(
         "os.environ",

@@ -1,0 +1,220 @@
+{
+  "generated_at_utc": "2026-05-03T19:33:00.592745+00:00",
+  "label": "current_baseline",
+  "note": "current project baseline before prompt changes",
+  "git_commit_sha": "4e6386dda9e3dc5fa9f89def576f38e2b2e00446",
+  "benchmark_version": 1,
+  "report": {
+    "cases": [
+      {
+        "id": "buy_aapl_week",
+        "query": "Should I buy Apple this week?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "sentiment"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 4,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 4,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "compare_nvda_amd",
+        "query": "Compare Nvidia vs AMD",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "sentiment"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 4,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 4,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "summarize_nvda_news",
+        "query": "Summarize Nvidia news from yesterday",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 3,
+        "required_tool_total": 3,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 3,
+        "evidence_total": 3,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "nvda_sentiment_specific_date",
+        "query": "What was the sentiment of Nvidia on 2026-04-02",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "fundamentals",
+          "market"
+        ],
+        "missing_required_tools": [
+          "news",
+          "sentiment"
+        ],
+        "wrong_tools": [
+          "fundamentals",
+          "market"
+        ],
+        "required_tool_hits": 0,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 0.0,
+        "evidence_hits": 2,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": false
+      },
+      {
+        "id": "aapl_price_today",
+        "query": "What is AAPL stock price today?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "fundamentals",
+          "news",
+          "sentiment"
+        ],
+        "missing_required_tools": [
+          "market",
+          "chart"
+        ],
+        "wrong_tools": [
+          "fundamentals",
+          "news",
+          "sentiment"
+        ],
+        "required_tool_hits": 0,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 0.0,
+        "evidence_hits": 2,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": false
+      },
+      {
+        "id": "nvda_price_specific_date",
+        "query": "What was the price of Nvidia on 2026-04-02",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "fundamentals",
+          "news",
+          "sentiment"
+        ],
+        "missing_required_tools": [
+          "market",
+          "chart"
+        ],
+        "wrong_tools": [
+          "fundamentals",
+          "news",
+          "sentiment"
+        ],
+        "required_tool_hits": 0,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 0.0,
+        "evidence_hits": 2,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": false
+      },
+      {
+        "id": "clarify_buy_apple",
+        "query": "Should I buy Apple?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 0,
+        "required_tool_total": 0,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 0,
+        "evidence_total": 0,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "weather_out_of_scope",
+        "query": "What is the weather in New York tomorrow?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 0,
+        "required_tool_total": 0,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 0,
+        "evidence_total": 0,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      }
+    ],
+    "summary": {
+      "case_count": 8,
+      "intent_accuracy_pct": 100.0,
+      "ticker_accuracy_pct": 100.0,
+      "stop_reason_accuracy_pct": 100.0,
+      "right_tool_call_pct": 64.71,
+      "evidence_coverage_pct": 100.0,
+      "end_to_end_success_pct": 62.5,
+      "totals": {
+        "case_count": 8,
+        "intent_correct": 8,
+        "tickers_correct": 8,
+        "stop_reason_correct": 8,
+        "required_tool_hits": 11,
+        "required_tool_total": 17,
+        "evidence_hits": 17,
+        "evidence_total": 17,
+        "case_pass": 5
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@ import unittest
 from app.state import build_initial_state
 
 from tests.evals.benchmark_cases import BENCHMARK_CASES
+from tests.evals.benchmark_cases_v2 import BENCHMARK_CASES_V2
 from tests.evals.benchmark_eval import aggregate_case_scores, run_benchmark_suite, score_case
 
 
@@ -35,7 +36,6 @@ class BenchmarkEvalLogicTests(unittest.TestCase):
         self.assertTrue(result["tickers_correct"])
         self.assertTrue(result["stop_reason_correct"])
         self.assertEqual(result["right_tool_call_pct"], 100.0)
-        self.assertEqual(result["wrong_tool_call_pct"], 0.0)
         self.assertEqual(result["evidence_coverage_pct"], 100.0)
         self.assertEqual(result["missing_required_tools"], [])
         self.assertEqual(result["wrong_tools"], [])
@@ -65,7 +65,6 @@ class BenchmarkEvalLogicTests(unittest.TestCase):
         result = score_case(state, case)
 
         self.assertEqual(result["right_tool_call_pct"], 0.0)
-        self.assertEqual(result["wrong_tool_call_pct"], 100.0)
         self.assertEqual(result["evidence_coverage_pct"], 50.0)
         self.assertEqual(result["missing_required_tools"], ["market", "chart"])
         self.assertEqual(result["wrong_tools"], ["fundamentals", "news"])
@@ -79,8 +78,6 @@ class BenchmarkEvalLogicTests(unittest.TestCase):
                 "stop_reason_correct": True,
                 "required_tool_hits": 2,
                 "required_tool_total": 2,
-                "wrong_tool_hits": 0,
-                "called_tool_total": 2,
                 "evidence_hits": 2,
                 "evidence_total": 2,
                 "case_pass": True,
@@ -91,8 +88,6 @@ class BenchmarkEvalLogicTests(unittest.TestCase):
                 "stop_reason_correct": True,
                 "required_tool_hits": 1,
                 "required_tool_total": 2,
-                "wrong_tool_hits": 1,
-                "called_tool_total": 2,
                 "evidence_hits": 1,
                 "evidence_total": 2,
                 "case_pass": False,
@@ -106,7 +101,6 @@ class BenchmarkEvalLogicTests(unittest.TestCase):
         self.assertEqual(summary["ticker_accuracy_pct"], 50.0)
         self.assertEqual(summary["stop_reason_accuracy_pct"], 100.0)
         self.assertEqual(summary["right_tool_call_pct"], 75.0)
-        self.assertEqual(summary["wrong_tool_call_pct"], 25.0)
         self.assertEqual(summary["evidence_coverage_pct"], 75.0)
         self.assertEqual(summary["end_to_end_success_pct"], 50.0)
 
@@ -118,11 +112,16 @@ class BenchmarkEvalIntegrationTests(unittest.TestCase):
         self.assertEqual(len(report["cases"]), len(BENCHMARK_CASES))
         self.assertEqual(report["summary"]["case_count"], len(BENCHMARK_CASES))
         self.assertIn("right_tool_call_pct", report["summary"])
-        self.assertIn("wrong_tool_call_pct", report["summary"])
         self.assertIn("evidence_coverage_pct", report["summary"])
         self.assertIn("end_to_end_success_pct", report["summary"])
-        self.assertTrue(any(not case["case_pass"] for case in report["cases"]))
-        self.assertTrue(any(case["case_pass"] for case in report["cases"]))
+        self.assertTrue(all(case["case_pass"] for case in report["cases"]))
+
+    def test_run_benchmark_suite_can_select_v2_cases(self):
+        report = run_benchmark_suite(suite="v2")
+
+        self.assertEqual(report["suite"], "v2")
+        self.assertEqual(len(report["cases"]), len(BENCHMARK_CASES_V2))
+        self.assertEqual(report["summary"]["case_count"], len(BENCHMARK_CASES_V2))
 
 
 if __name__ == "__main__":

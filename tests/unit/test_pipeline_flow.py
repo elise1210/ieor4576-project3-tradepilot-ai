@@ -93,6 +93,15 @@ class PipelineFlowTests(unittest.TestCase):
                 {"skill": "fundamentals", "ticker": "AAPL", "params": {}},
             ],
         )
+        self.assertCountEqual(
+            state["metadata"]["all_executed_research_steps"],
+            [
+                {"skill": "news", "ticker": "AAPL", "params": {}},
+                {"skill": "sentiment", "ticker": "AAPL", "params": {}},
+                {"skill": "market", "ticker": "AAPL", "params": {}},
+                {"skill": "fundamentals", "ticker": "AAPL", "params": {}},
+            ],
+        )
         self.assertEqual(
             state["evidence"]["fundamentals"]["AAPL"]["market_cap_bucket"],
             "large_cap",
