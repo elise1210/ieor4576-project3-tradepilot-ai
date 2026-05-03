@@ -60,40 +60,22 @@ The backend returns both:
 
 ```mermaid
 flowchart TD
-    U[User]
-    FE[Frontend / API Layer<br/>/ , /chat, /chat/start, /chat/resume]
-    S[(Shared State<br/>query, plan, evidence,<br/>critic_result, metadata)]
+    Q[Query]
+    P[Planner Agent]
+    H[Human in the Loop]
+    R[Research Agent]
+    C[Critic Agent]
+    D[Decision Agent]
+    O[Output]
 
-    subgraph G[TradePilot Agent Graph]
-        P[Planner Agent<br/>intent classification<br/>ticker inference<br/>evidence plan]
-        H[Human In The Loop<br/>clarification response]
-        R[Research Agent<br/>tool execution<br/>news / market / fundamentals<br/>sentiment / chart]
-        C[Critic Agent<br/>structural checks<br/>semantic sufficiency<br/>follow-up steps]
-        D[Decision Agent<br/>recommendation / comparison<br/>confidence and risk]
-        X[Research / Explanation Formatter]
-        O[Out-of-Scope Stop]
-        E[Iteration Budget Exhausted]
-    end
-
-    A[Final Answer<br/>charts + explanation + safe state]
-
-    U --> FE --> P
-    P <--> S
-    R <--> S
-    C <--> S
-    D <--> S
-    X <--> S
-    H <--> S
-
-    P -->|out_of_scope| O --> A
-    P -->|needs clarification| H -->|resume with user input| R
-    P -->|research path| R
-
+    Q --> P
+    P -->|needs clarification| H
+    H --> P
+    P -->|planned query| R
     R --> C
     C -->|not enough evidence| R
-    C -->|enough evidence for decision flow| D --> A
-    C -->|enough evidence for explanation flow| X --> A
-    C -->|max iterations reached| E --> A
+    C -->|enough evidence| D
+    D --> O
 ```
 
 ### Default Iteration Budget
