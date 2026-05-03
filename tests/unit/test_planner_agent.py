@@ -32,6 +32,15 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["tickers"], ["NVDA", "AMD"])
         self.assertFalse(result["needs_human"])
 
+    def test_which_is_better_query_is_classified_as_comparison(self):
+        state = build_initial_state("Which is better, Nvidia or AMD?")
+
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "comparison")
+        self.assertEqual(result["tickers"], ["NVDA", "AMD"])
+        self.assertFalse(result["needs_human"])
+
     def test_buy_query_without_horizon_requests_clarification(self):
         state = build_initial_state("Should I buy Apple?")
 
@@ -185,6 +194,40 @@ class PlannerAgentTests(unittest.TestCase):
         clear=True,
     )
     @patch("app.agents.llm_planner.urllib.request.urlopen")
+    def test_llm_planner_can_mark_soft_sentiment_query_with_required_evidence(self, mock_urlopen):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return (
+                    b'{"choices":[{"message":{"content":"{\\"intent\\":\\"general_research\\",\\"tickers\\":[\\"NVDA\\"],\\"time_horizon\\":\\"unknown\\",\\"needs_human\\":false,\\"clarification_question\\":null,\\"ticker_source\\":\\"company_alias\\",\\"ticker_inference_confidence\\":\\"medium\\",\\"required_evidence\\":[\\"news\\",\\"sentiment\\"],\\"reasoning_brief\\":\\"The user is effectively asking about market sentiment around Nvidia.\\"}"}}]}'
+                )
+
+        mock_urlopen.return_value = FakeResponse()
+
+        state = build_initial_state("How do you feel about Nvidia lately?")
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "general_research")
+        self.assertEqual(result["tickers"], ["NVDA"])
+        self.assertEqual(result["plan"]["required_evidence"], ["news", "sentiment"])
+        self.assertEqual(result["metadata"]["planner_mode"], "llm")
+        self.assertFalse(result["needs_human"])
+
+    @patch.dict(
+        "os.environ",
+        {
+            "USE_LLM_PLANNER": "true",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_PLANNER_MODEL": "gpt-4o-mini",
+        },
+        clear=True,
+    )
+    @patch("app.agents.llm_planner.urllib.request.urlopen")
     def test_llm_planner_does_not_clarify_when_query_already_contains_time_info(self, mock_urlopen):
         class FakeResponse:
             def __enter__(self):
@@ -243,6 +286,38 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["metadata"]["ticker_source"], "company_name")
         self.assertEqual(result["metadata"]["planner_mode"], "deterministic_fallback")
         self.assertFalse(result["needs_human"])
+
+    @patch.dict(
+        "os.environ",
+        {
+            "USE_LLM_PLANNER": "true",
+            "OPENAI_API_KEY": "test-key",
+            "OPENAI_PLANNER_MODEL": "gpt-4o-mini",
+        },
+        clear=True,
+    )
+    @patch("app.agents.llm_planner.urllib.request.urlopen")
+    def test_llm_planner_failure_on_fuzzy_company_falls_back_to_human_clarification(self, mock_urlopen):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"choices":[{"message":{"content":"not-json"}}]}'
+
+        mock_urlopen.return_value = FakeResponse()
+
+        state = build_initial_state("Should I buy the iPhone company this week?")
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "buy_sell_decision")
+        self.assertEqual(result["tickers"], [])
+        self.assertEqual(result["metadata"]["planner_mode"], "deterministic_fallback")
+        self.assertTrue(result["needs_human"])
+        self.assertEqual(result["clarification_type"], "ticker")
 
 
 if __name__ == "__main__":

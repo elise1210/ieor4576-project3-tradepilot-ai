@@ -44,6 +44,7 @@ EXPLICIT_TICKER_STOPWORDS = {
 }
 
 COMPARISON_KEYWORDS = ("compare", "versus", "vs", "better than")
+COMPARISON_CUE_KEYWORDS = ("better", "stronger", "weaker", "best", "prefer", "winner")
 BUY_SELL_KEYWORDS = ("buy", "sell", "hold", "should i buy", "should i sell")
 EXPLANATION_KEYWORDS = ("why", "what happened", "explain", "summarize")
 SUMMARY_RESEARCH_KEYWORDS = (
@@ -111,10 +112,29 @@ EVIDENCE_BY_INTENT = {
 }
 
 
+def _candidate_entity_count(query: str) -> int:
+    explicit = extract_explicit_tickers(query)
+    inferred = infer_tickers_from_company_names(query)
+    merged = []
+    for ticker in explicit + inferred:
+        if ticker not in merged:
+            merged.append(ticker)
+    return len(merged)
+
+
+def _looks_like_comparison_query(query: str) -> bool:
+    text = (query or "").strip().lower()
+    if any(keyword in text for keyword in COMPARISON_KEYWORDS):
+        return True
+    if _candidate_entity_count(query) >= 2 and any(cue in text for cue in COMPARISON_CUE_KEYWORDS):
+        return True
+    return False
+
+
 def classify_intent(query: str) -> str:
     text = (query or "").strip().lower()
 
-    if any(keyword in text for keyword in COMPARISON_KEYWORDS):
+    if _looks_like_comparison_query(query):
         return "comparison"
     if any(keyword in text for keyword in BUY_SELL_KEYWORDS):
         return "buy_sell_decision"
@@ -251,12 +271,17 @@ def infer_tickers(
     return [], "unknown", None
 
 
-def build_task_plan(intent: str, query: str = "") -> dict:
-    if is_price_lookup_query(query, intent):
+def build_task_plan(intent: str, query: str = "", required_evidence_override: Optional[list[str]] = None) -> dict:
+    required = None
+
+    if required_evidence_override:
+        required = list(required_evidence_override)
+
+    if required is None and is_price_lookup_query(query, intent):
         required = ["market"]
-    elif is_sentiment_research_query(query, intent):
+    elif required is None and is_sentiment_research_query(query, intent):
         required = ["news", "sentiment"]
-    else:
+    elif required is None:
         required = list(EVIDENCE_BY_INTENT.get(intent, ["news", "market", "fundamentals"]))
 
     if should_show_chart_for_query(query) and "chart" not in required:
@@ -360,6 +385,7 @@ def _apply_planner_result(
     time_horizon: str,
     ticker_source: str,
     confidence: Optional[str],
+    required_evidence_override: Optional[list[str]] = None,
     clarification_question: Optional[str] = None,
     clarification_type: Optional[str] = None,
     clarification_options: Optional[list[dict]] = None,
@@ -369,7 +395,7 @@ def _apply_planner_result(
     next_state = clone_state(state)
 
     query = next_state.get("query", "")
-    plan = build_task_plan(intent, query=query)
+    plan = build_task_plan(intent, query=query, required_evidence_override=required_evidence_override)
     clarification_question = clarification_question or build_clarification_question(
         intent,
         tickers,
@@ -487,6 +513,7 @@ def run_planner_agent(state: dict) -> dict:
         time_horizon=time_horizon,
         ticker_source=llm_result["ticker_source"],
         confidence=llm_result["ticker_inference_confidence"],
+        required_evidence_override=llm_result.get("required_evidence"),
         clarification_question=clarification_question,
         clarification_type=clarification_type,
         clarification_options=clarification_options,

@@ -22,6 +22,7 @@ class BenchmarkResultsToolsTests(unittest.TestCase):
                     label="baseline",
                     note="current project",
                     suite="v2",
+                    mode="llm",
                 )
 
             self.assertTrue(timestamped_path.exists())
@@ -30,12 +31,15 @@ class BenchmarkResultsToolsTests(unittest.TestCase):
             self.assertEqual(payload["label"], "baseline")
             self.assertEqual(payload["note"], "current project")
             self.assertEqual(payload["suite"], "v2")
+            self.assertEqual(payload["mode"], "llm")
+            self.assertEqual(timestamped_path.parent.name, "llm")
 
             latest_payload = json.loads(latest_path.read_text(encoding="utf-8"))
             latest_suite_payload = json.loads(latest_suite_path.read_text(encoding="utf-8"))
             self.assertIn("report", latest_payload)
             self.assertIn("summary", latest_payload["report"])
             self.assertEqual(latest_suite_payload["suite"], "v2")
+            self.assertEqual(latest_suite_payload["mode"], "llm")
             self.assertEqual(
                 latest_payload["report"]["summary"]["case_count"],
                 payload["report"]["summary"]["case_count"],
@@ -50,6 +54,8 @@ class BenchmarkResultsToolsTests(unittest.TestCase):
             base_payload = {
                 "generated_at_utc": "2026-05-03T00:00:00+00:00",
                 "label": "base",
+                "mode": "deterministic",
+                "suite": "v1",
                 "report": {
                     "summary": {
                         "intent_accuracy_pct": 100.0,
@@ -64,6 +70,8 @@ class BenchmarkResultsToolsTests(unittest.TestCase):
             candidate_payload = {
                 "generated_at_utc": "2026-05-03T01:00:00+00:00",
                 "label": "candidate",
+                "mode": "deterministic",
+                "suite": "v1",
                 "report": {
                     "summary": {
                         "intent_accuracy_pct": 100.0,

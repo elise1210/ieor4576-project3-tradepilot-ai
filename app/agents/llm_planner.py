@@ -26,6 +26,7 @@ ALLOWED_INTENTS = {
 ALLOWED_TIME_HORIZONS = {"short_term", "long_term", "unknown"}
 ALLOWED_CONFIDENCE = {"low", "medium", "high"}
 ALLOWED_CLARIFICATION_TYPES = {"ticker", "time_horizon", "custom"}
+ALLOWED_REQUIRED_EVIDENCE = {"news", "market", "fundamentals", "sentiment", "chart"}
 
 
 def _normalize_clarification_options(value: object) -> Optional[list[dict]]:
@@ -99,6 +100,24 @@ def _normalize_tickers(value: object) -> list[str]:
     return tickers
 
 
+def _normalize_required_evidence(value: object) -> Optional[list[str]]:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        return None
+
+    cleaned = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        evidence_type = item.strip().lower()
+        if evidence_type not in ALLOWED_REQUIRED_EVIDENCE:
+            continue
+        if evidence_type not in cleaned:
+            cleaned.append(evidence_type)
+    return cleaned or None
+
+
 def _normalize_llm_planner_output(data: dict, provided_ticker: Optional[str] = None) -> Optional[dict]:
     if not isinstance(data, dict):
         return None
@@ -142,6 +161,8 @@ def _normalize_llm_planner_output(data: dict, provided_ticker: Optional[str] = N
     if not isinstance(reasoning_brief, str) or not reasoning_brief.strip():
         reasoning_brief = None
 
+    required_evidence = _normalize_required_evidence(data.get("required_evidence"))
+
     return {
         "intent": intent,
         "tickers": tickers,
@@ -152,6 +173,7 @@ def _normalize_llm_planner_output(data: dict, provided_ticker: Optional[str] = N
         "clarification_options": clarification_options,
         "ticker_source": ticker_source,
         "ticker_inference_confidence": confidence,
+        "required_evidence": required_evidence,
         "reasoning_brief": reasoning_brief,
     }
 

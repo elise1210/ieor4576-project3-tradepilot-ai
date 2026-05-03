@@ -36,14 +36,16 @@ def _build_payload(
     label: str | None = None,
     note: str | None = None,
     suite: str = "v1",
+    mode: str = "deterministic",
 ) -> dict:
-    report = run_benchmark_suite(suite=suite)
+    report = run_benchmark_suite(suite=suite, mode=mode)
     timestamp = datetime.now(timezone.utc)
     return {
         "generated_at_utc": timestamp.isoformat(),
         "label": label,
         "note": note,
         "suite": suite,
+        "mode": mode,
         "git_commit_sha": _git_commit_sha(),
         "benchmark_version": 1,
         "report": report,
@@ -58,18 +60,20 @@ def save_benchmark_results(
     label: str | None = None,
     note: str | None = None,
     suite: str = "v1",
+    mode: str = "deterministic",
 ) -> tuple[Path, Path, Path, dict]:
-    payload = _build_payload(label=label, note=note, suite=suite)
+    payload = _build_payload(label=label, note=note, suite=suite, mode=mode)
     timestamp_text = payload["generated_at_utc"]
     stem = _timestamp_stem(timestamp_text)
     label_suffix = _safe_label(label)
     if label_suffix:
         stem = f"{stem}_{label_suffix}"
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamped_path = RESULTS_DIR / f"{stem}.json"
-    latest_path = RESULTS_DIR / "latest.json"
-    latest_suite_path = RESULTS_DIR / f"latest_{suite}.json"
+    mode_dir = RESULTS_DIR / mode
+    mode_dir.mkdir(parents=True, exist_ok=True)
+    timestamped_path = mode_dir / f"{stem}.json"
+    latest_path = mode_dir / "latest.json"
+    latest_suite_path = mode_dir / f"latest_{suite}.json"
 
     serialized = json.dumps(payload, indent=2, ensure_ascii=True)
     timestamped_path.write_text(serialized + "\n", encoding="utf-8")
@@ -80,6 +84,11 @@ def save_benchmark_results(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the benchmark suite and save the scored results.")
+    parser.add_argument(
+        "--mode",
+        default="deterministic",
+        help="Benchmark mode to run: deterministic or llm.",
+    )
     parser.add_argument("--suite", default="v1", help="Benchmark suite to run, such as v1 or v2.")
     parser.add_argument("--label", help="Optional short label such as prompt_v1 or planner_tweak.")
     parser.add_argument("--note", help="Optional free-text note describing what changed.")
@@ -89,12 +98,14 @@ def main() -> None:
         label=args.label,
         note=args.note,
         suite=args.suite,
+        mode=args.mode,
     )
     summary = payload["report"]["summary"]
 
     print(f"Saved benchmark results to: {timestamped_path}")
     print(f"Updated latest snapshot: {latest_path}")
     print(f"Updated suite snapshot: {latest_suite_path}")
+    print(f"Mode: {payload['mode']}")
     print(f"Suite: {payload['suite']}")
     print("Summary:")
     print(f"  Intent Accuracy %: {summary['intent_accuracy_pct']}")

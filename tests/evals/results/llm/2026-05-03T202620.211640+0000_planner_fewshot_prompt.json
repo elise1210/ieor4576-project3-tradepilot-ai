@@ -1,12 +1,14 @@
 {
-  "generated_at_utc": "2026-05-03T20:04:52.853079+00:00",
-  "label": "harder_v2_baseline",
-  "note": "10 harder benchmark cases with fuzzier references and intent phrasing",
+  "generated_at_utc": "2026-05-03T20:26:20.211640+00:00",
+  "label": "planner_fewshot_prompt",
+  "note": "planner prompt now includes non-benchmark few-shot examples",
   "suite": "v2",
-  "git_commit_sha": "4e6386dda9e3dc5fa9f89def576f38e2b2e00446",
+  "mode": "llm",
+  "git_commit_sha": "cc41b37e35a270b9b3cd421b7982beda8043c43e",
   "benchmark_version": 1,
   "report": {
     "suite": "v2",
+    "mode": "llm",
     "cases": [
       {
         "id": "v2_buy_iphone_company_week",
@@ -67,28 +69,25 @@
       {
         "id": "v2_which_is_better_nvda_amd",
         "query": "Which is better, Nvidia or AMD?",
-        "intent_correct": false,
+        "intent_correct": true,
         "tickers_correct": true,
-        "stop_reason_correct": false,
+        "stop_reason_correct": true,
         "called_tools": [
           "news",
           "market",
-          "fundamentals"
-        ],
-        "missing_required_tools": [
+          "fundamentals",
           "sentiment"
         ],
+        "missing_required_tools": [],
         "wrong_tools": [],
-        "required_tool_hits": 3,
+        "required_tool_hits": 4,
         "required_tool_total": 4,
-        "right_tool_call_pct": 75.0,
-        "evidence_hits": 3,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 4,
         "evidence_total": 4,
-        "evidence_coverage_pct": 75.0,
-        "missing_evidence": [
-          "sentiment"
-        ],
-        "case_pass": false
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
       },
       {
         "id": "v2_feel_about_nvidia_lately",
@@ -255,22 +254,22 @@
     ],
     "summary": {
       "case_count": 10,
-      "intent_accuracy_pct": 90.0,
+      "intent_accuracy_pct": 100.0,
       "ticker_accuracy_pct": 70.0,
-      "stop_reason_accuracy_pct": 60.0,
-      "right_tool_call_pct": 60.0,
-      "evidence_coverage_pct": 60.0,
-      "end_to_end_success_pct": 50.0,
+      "stop_reason_accuracy_pct": 70.0,
+      "right_tool_call_pct": 63.33,
+      "evidence_coverage_pct": 63.33,
+      "end_to_end_success_pct": 60.0,
       "totals": {
         "case_count": 10,
-        "intent_correct": 9,
+        "intent_correct": 10,
         "tickers_correct": 7,
-        "stop_reason_correct": 6,
-        "required_tool_hits": 18,
+        "stop_reason_correct": 7,
+        "required_tool_hits": 19,
         "required_tool_total": 30,
-        "evidence_hits": 18,
+        "evidence_hits": 19,
         "evidence_total": 30,
-        "case_pass": 5
+        "case_pass": 6
       }
     }
   }

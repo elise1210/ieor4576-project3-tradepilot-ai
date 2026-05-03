@@ -55,6 +55,8 @@ class PromptSchemaTests(unittest.TestCase):
         self.assertIn("return JSON only", prompt)
         self.assertIn("Allowed intent values", prompt)
         self.assertIn("Return exactly these fields", prompt)
+        self.assertIn("Few-shot examples", prompt)
+        self.assertIn("Windows maker", prompt)
 
     def test_decision_prompt_mentions_json_and_allowed_output_shapes(self):
         prompt = build_decision_system_prompt()

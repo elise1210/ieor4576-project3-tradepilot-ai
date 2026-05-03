@@ -18,7 +18,23 @@ DETERMINISTIC_EVAL_ENV = {
     "USE_LLM_CRITIC": "false",
     "USE_LLM_DECISION": "false",
 }
+LLM_EVAL_ENV = {
+    "USE_LANGGRAPH": "false",
+    "USE_LLM_PLANNER": "true",
+    "USE_LLM_RESEARCH": "true",
+    "USE_LLM_CRITIC": "true",
+    "USE_LLM_DECISION": "true",
+}
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
+
+
+def env_for_mode(mode: str) -> dict[str, str]:
+    mode_key = (mode or "deterministic").strip().lower()
+    if mode_key == "deterministic":
+        return dict(DETERMINISTIC_EVAL_ENV)
+    if mode_key == "llm":
+        return dict(LLM_EVAL_ENV)
+    raise ValueError(f"Unknown benchmark mode: {mode}")
 
 
 def _safe_pct(numerator: int, denominator: int, empty_default: float) -> float:
@@ -191,18 +207,20 @@ def run_benchmark_suite(
     cases: list[dict] | None = None,
     skills: dict | None = None,
     suite: str = "v1",
+    mode: str = "deterministic",
 ) -> dict:
     benchmark_cases = list(cases or get_benchmark_cases(suite))
     benchmark_skills = skills or FAKE_SKILLS
     scorecards = []
 
-    with patch.dict("os.environ", DETERMINISTIC_EVAL_ENV, clear=False):
+    with patch.dict("os.environ", env_for_mode(mode), clear=False):
         for case in benchmark_cases:
             state = run_tradepilot_pipeline(query=case["query"], skills=benchmark_skills)
             scorecards.append(score_case(state, case))
 
     return {
         "suite": suite,
+        "mode": mode,
         "cases": scorecards,
         "summary": aggregate_case_scores(scorecards),
     }
@@ -210,9 +228,11 @@ def run_benchmark_suite(
 
 __all__ = [
     "DETERMINISTIC_EVAL_ENV",
+    "LLM_EVAL_ENV",
     "RESULTS_DIR",
     "aggregate_case_scores",
     "called_tools_from_state",
+    "env_for_mode",
     "evidence_present_for_case",
     "run_benchmark_suite",
     "score_case",

@@ -109,6 +109,7 @@ class BenchmarkEvalIntegrationTests(unittest.TestCase):
     def test_run_benchmark_suite_returns_scored_cases_and_summary(self):
         report = run_benchmark_suite()
 
+        self.assertEqual(report["mode"], "deterministic")
         self.assertEqual(len(report["cases"]), len(BENCHMARK_CASES))
         self.assertEqual(report["summary"]["case_count"], len(BENCHMARK_CASES))
         self.assertIn("right_tool_call_pct", report["summary"])
@@ -120,6 +121,7 @@ class BenchmarkEvalIntegrationTests(unittest.TestCase):
         report = run_benchmark_suite(suite="v2")
 
         self.assertEqual(report["suite"], "v2")
+        self.assertEqual(report["mode"], "deterministic")
         self.assertEqual(len(report["cases"]), len(BENCHMARK_CASES_V2))
         self.assertEqual(report["summary"]["case_count"], len(BENCHMARK_CASES_V2))
 

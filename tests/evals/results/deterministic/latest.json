@@ -1,0 +1,274 @@
+{
+  "generated_at_utc": "2026-05-03T20:11:13.543328+00:00",
+  "label": "planner_prompt_and_comparison_update",
+  "note": "strengthened planner prompt for fuzzy refs and soft sentiment; broadened deterministic comparison detection",
+  "suite": "v2",
+  "git_commit_sha": "cc41b37e35a270b9b3cd421b7982beda8043c43e",
+  "benchmark_version": 1,
+  "report": {
+    "suite": "v2",
+    "cases": [
+      {
+        "id": "v2_buy_iphone_company_week",
+        "query": "Should I buy the iPhone company this week?",
+        "intent_correct": true,
+        "tickers_correct": false,
+        "stop_reason_correct": false,
+        "called_tools": [],
+        "missing_required_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "sentiment"
+        ],
+        "wrong_tools": [],
+        "required_tool_hits": 0,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 0.0,
+        "evidence_hits": 0,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 0.0,
+        "missing_evidence": [
+          "news",
+          "market",
+          "fundamentals",
+          "sentiment"
+        ],
+        "case_pass": false
+      },
+      {
+        "id": "v2_iphone_company_move_today",
+        "query": "Why did the iPhone company move today?",
+        "intent_correct": true,
+        "tickers_correct": false,
+        "stop_reason_correct": false,
+        "called_tools": [],
+        "missing_required_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "chart"
+        ],
+        "wrong_tools": [],
+        "required_tool_hits": 0,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 0.0,
+        "evidence_hits": 0,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 0.0,
+        "missing_evidence": [
+          "news",
+          "market",
+          "fundamentals",
+          "chart"
+        ],
+        "case_pass": false
+      },
+      {
+        "id": "v2_which_is_better_nvda_amd",
+        "query": "Which is better, Nvidia or AMD?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "sentiment"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 4,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 4,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "v2_feel_about_nvidia_lately",
+        "query": "How do you feel about Nvidia lately?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals"
+        ],
+        "missing_required_tools": [
+          "sentiment"
+        ],
+        "wrong_tools": [
+          "market",
+          "fundamentals"
+        ],
+        "required_tool_hits": 1,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 50.0,
+        "evidence_hits": 1,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 50.0,
+        "missing_evidence": [
+          "sentiment"
+        ],
+        "case_pass": false
+      },
+      {
+        "id": "v2_sentiment_iphone_company_today",
+        "query": "What is the sentiment of the iPhone company today?",
+        "intent_correct": true,
+        "tickers_correct": false,
+        "stop_reason_correct": false,
+        "called_tools": [],
+        "missing_required_tools": [
+          "news",
+          "sentiment"
+        ],
+        "wrong_tools": [],
+        "required_tool_hits": 0,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 0.0,
+        "evidence_hits": 0,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 0.0,
+        "missing_evidence": [
+          "news",
+          "sentiment"
+        ],
+        "case_pass": false
+      },
+      {
+        "id": "v2_compare_amd_nvda_sentiment_today",
+        "query": "Compare AMD and Nvidia on sentiment today",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "sentiment"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 4,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 4,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "v2_google_stock_happened_date",
+        "query": "What happened to Google stock on 2026-04-02?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "market",
+          "fundamentals",
+          "chart"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 4,
+        "required_tool_total": 4,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 4,
+        "evidence_total": 4,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "v2_meta_price_trend_last_7_days",
+        "query": "What was Meta's stock price trend in last 7 days?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "market",
+          "chart"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 2,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 2,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "v2_meta_closing_price_specific_date",
+        "query": "What is the closing price for Meta on 2026-04-02?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "market",
+          "chart"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 2,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 2,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      },
+      {
+        "id": "v2_google_sentiment_yesterday",
+        "query": "What was sentiment around Google yesterday?",
+        "intent_correct": true,
+        "tickers_correct": true,
+        "stop_reason_correct": true,
+        "called_tools": [
+          "news",
+          "sentiment"
+        ],
+        "missing_required_tools": [],
+        "wrong_tools": [],
+        "required_tool_hits": 2,
+        "required_tool_total": 2,
+        "right_tool_call_pct": 100.0,
+        "evidence_hits": 2,
+        "evidence_total": 2,
+        "evidence_coverage_pct": 100.0,
+        "missing_evidence": [],
+        "case_pass": true
+      }
+    ],
+    "summary": {
+      "case_count": 10,
+      "intent_accuracy_pct": 100.0,
+      "ticker_accuracy_pct": 70.0,
+      "stop_reason_accuracy_pct": 70.0,
+      "right_tool_call_pct": 63.33,
+      "evidence_coverage_pct": 63.33,
+      "end_to_end_success_pct": 60.0,
+      "totals": {
+        "case_count": 10,
+        "intent_correct": 10,
+        "tickers_correct": 7,
+        "stop_reason_correct": 7,
+        "required_tool_hits": 19,
+        "required_tool_total": 30,
+        "evidence_hits": 19,
+        "evidence_total": 30,
+        "case_pass": 6
+      }
+    }
+  }
+}

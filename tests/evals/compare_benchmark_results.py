@@ -25,11 +25,13 @@ def _load_payload(path_text: str) -> dict:
 def _default_candidate_path(base_path: str) -> str:
     base_payload = _load_payload(base_path)
     suite = base_payload.get("suite")
+    mode = base_payload.get("mode")
+    mode_dir = RESULTS_DIR / (str(mode).strip().lower() if mode else "deterministic")
     if isinstance(suite, str) and suite.strip():
-        suite_path = RESULTS_DIR / f"latest_{suite.strip().lower()}.json"
+        suite_path = mode_dir / f"latest_{suite.strip().lower()}.json"
         if suite_path.exists():
             return str(suite_path)
-    return str(RESULTS_DIR / "latest.json")
+    return str(mode_dir / "latest.json")
 
 
 def compare_result_files(base_path: str, candidate_path: str) -> dict:
@@ -49,6 +51,8 @@ def compare_result_files(base_path: str, candidate_path: str) -> dict:
         "candidate_label": candidate_payload.get("label"),
         "base_suite": base_payload.get("suite"),
         "candidate_suite": candidate_payload.get("suite"),
+        "base_mode": base_payload.get("mode"),
+        "candidate_mode": candidate_payload.get("mode"),
         "base_generated_at_utc": base_payload.get("generated_at_utc"),
         "candidate_generated_at_utc": candidate_payload.get("generated_at_utc"),
         "base_summary": base_summary,
@@ -73,6 +77,8 @@ def main() -> None:
 
     print(f"Base: {comparison['base_path']}")
     print(f"Candidate: {comparison['candidate_path']}")
+    print(f"Base mode: {comparison['base_mode']}")
+    print(f"Candidate mode: {comparison['candidate_mode']}")
     print(f"Base suite: {comparison['base_suite']}")
     print(f"Candidate suite: {comparison['candidate_suite']}")
     print("Metric deltas (candidate - base):")
