@@ -103,6 +103,28 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["tickers"], ["NVDA"])
         self.assertFalse(result["needs_human"])
 
+    @patch.dict("os.environ", {"USE_LLM_PLANNER": "false"}, clear=False)
+    def test_sentiment_query_requests_news_and_sentiment_evidence(self):
+        state = build_initial_state("What was the sentiment of Nvidia on 2026-04-02")
+
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "general_research")
+        self.assertEqual(result["tickers"], ["NVDA"])
+        self.assertEqual(result["plan"]["required_evidence"], ["news", "sentiment"])
+        self.assertFalse(result["needs_human"])
+
+    @patch.dict("os.environ", {"USE_LLM_PLANNER": "false"}, clear=False)
+    def test_date_specific_price_query_requests_market_and_chart(self):
+        state = build_initial_state("What was the price of Nvidia on 2026-04-02")
+
+        result = run_planner_agent(state)
+
+        self.assertEqual(result["intent"], "general_research")
+        self.assertEqual(result["tickers"], ["NVDA"])
+        self.assertEqual(result["plan"]["required_evidence"], ["market", "chart"])
+        self.assertFalse(result["needs_human"])
+
     @patch.dict(
         "os.environ",
         {

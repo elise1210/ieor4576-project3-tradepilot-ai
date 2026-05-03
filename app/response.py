@@ -34,18 +34,87 @@ def _first_ticker(state: dict) -> str:
     return tickers[0] if tickers else ""
 
 
+def _is_sentiment_query(state: dict) -> bool:
+    query = (state.get("query") or "").lower()
+    required = set(state.get("plan", {}).get("required_evidence", []))
+    return "sentiment" in query or ("sentiment" in required and "news" in required)
+
+
+def _format_sentiment_answer(ticker: str, sentiment: dict) -> str:
+    if not sentiment:
+        return ""
+
+    label = sentiment.get("sentiment", "neutral")
+    score = sentiment.get("score", 0.0)
+    article_count = sentiment.get("article_count", 0)
+    positive = sentiment.get("positive_count", 0)
+    neutral = sentiment.get("neutral_count", 0)
+    negative = sentiment.get("negative_count", 0)
+    requested_date = sentiment.get("requested_date")
+    date_text = f" on {requested_date}" if requested_date else ""
+
+    return (
+        f"Sentiment for {ticker}{date_text}: {label}.\n"
+        f"Score: {float(score):+.3f} based on {article_count} article(s).\n"
+        f"Breakdown: {positive} positive, {neutral} neutral, {negative} negative."
+    )
+
+
+def _wants_price_answer(query: str) -> bool:
+    text = (query or "").lower()
+    return any(
+        keyword in text
+        for keyword in ("price", "stock price", "closing price", "close", "open", "high", "low", "volume")
+    )
+
+
+def _format_price_answer(ticker: str, market: dict) -> str:
+    if not market or market.get("current_price") is None:
+        return ""
+
+    price = float(market["current_price"])
+    requested_date = market.get("requested_date")
+    used_date = market.get("used_end_date") or market.get("end_date")
+
+    if requested_date:
+        if used_date and used_date != requested_date:
+            return (
+                f"{ticker}'s closing price on the latest available trading day at or before "
+                f"{requested_date} was ${price:.2f} ({used_date})."
+            )
+        return f"{ticker}'s closing price on {requested_date} was ${price:.2f}."
+
+    if used_date:
+        return f"{ticker}'s latest available closing price was ${price:.2f} ({used_date})."
+
+    return f"{ticker}'s latest available closing price was ${price:.2f}."
+
+
 def _format_research_answer(state: dict) -> str:
     ticker = _first_ticker(state)
     evidence = state.get("evidence", {})
     news = evidence.get("news", {}).get(ticker, {})
     market = evidence.get("market", {}).get(ticker, {})
     fundamentals = evidence.get("fundamentals", {}).get(ticker, {})
+    sentiment = evidence.get("sentiment", {}).get(ticker, {})
     critic_result = state.get("critic_result", {})
 
     lines = []
 
+    if _wants_price_answer(state.get("query", "")):
+        price_answer = _format_price_answer(ticker, market)
+        if price_answer:
+            lines.append(price_answer)
+
+    if _is_sentiment_query(state):
+        sentiment_answer = _format_sentiment_answer(ticker, sentiment)
+        if sentiment_answer:
+            lines.append(sentiment_answer)
+
     news_summary = news.get("summary")
     if news_summary:
+        if lines:
+            lines.append("")
         lines.append(news_summary)
 
     trend_label = market.get("trend_label")

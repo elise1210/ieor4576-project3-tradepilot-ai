@@ -4,6 +4,7 @@ from typing import Callable, Dict, Optional
 from dotenv import load_dotenv
 
 from app.agents.llm_research import run_llm_research_planner
+from app.skills.date_utils import parse_user_date
 from app.state import clone_state
 
 
@@ -170,7 +171,12 @@ def _run_news_skill(skill: Callable, ticker: str, query: str, params: Optional[d
         call_args["max_items"] = params["max_items"]
     if "target_date" in params:
         call_args["target_date"] = params["target_date"]
-    return skill(**call_args)
+
+    try:
+        return skill(**call_args)
+    except TypeError:
+        call_args.pop("target_date", None)
+        return skill(**call_args)
 
 
 def _run_market_skill(skill: Callable, ticker: str, params: Optional[dict] = None) -> dict:
@@ -184,7 +190,12 @@ def _run_market_skill(skill: Callable, ticker: str, params: Optional[dict] = Non
         call_args["requested_date"] = params["requested_date"]
     elif "target_date" in params:
         call_args["requested_date"] = params["target_date"]
-    return skill(**call_args)
+
+    try:
+        return skill(**call_args)
+    except TypeError:
+        call_args.pop("requested_date", None)
+        return skill(**call_args)
 
 
 def _run_fundamentals_skill(skill: Callable, ticker: str, params: Optional[dict] = None) -> dict:
@@ -301,17 +312,47 @@ def _build_default_research_steps(state: dict) -> list[dict]:
     steps = []
     tickers = list(state.get("tickers", []))
     required_evidence = _get_required_evidence(state)
+    requested_date = parse_user_date(state.get("query", ""))
 
     for ticker in tickers:
         for evidence_type in ("news", "market", "fundamentals", "sentiment", "chart"):
             if evidence_type in required_evidence:
+                params = {}
+                if requested_date and evidence_type == "news":
+                    params["target_date"] = requested_date.isoformat()
+                elif requested_date and evidence_type == "market":
+                    params["requested_date"] = requested_date.isoformat()
+
                 steps.append({
                     "skill": evidence_type,
                     "ticker": ticker,
-                    "params": {},
+                    "params": params,
                 })
 
     return steps
+
+
+def _apply_query_date_to_steps(state: dict, steps: list[dict]) -> list[dict]:
+    requested_date = parse_user_date(state.get("query", ""))
+    if requested_date is None:
+        return steps
+
+    requested_date_text = requested_date.isoformat()
+    dated_steps = []
+
+    for step in steps:
+        updated = dict(step)
+        params = dict(updated.get("params", {}))
+
+        if updated.get("skill") == "news":
+            params.setdefault("target_date", requested_date_text)
+        elif updated.get("skill") == "market":
+            params.setdefault("requested_date", requested_date_text)
+
+        updated["params"] = params
+        dated_steps.append(updated)
+
+    return dated_steps
 
 
 def _covers_required_evidence(state: dict, steps: list[dict]) -> bool:
@@ -344,22 +385,22 @@ def _build_research_steps(state: dict) -> tuple[list[dict], str, Optional[str]]:
         reasoning_brief = state.get("metadata", {}).get("critic_reasoning_brief")
         if not reasoning_brief:
             reasoning_brief = "Executing critic-directed follow-up steps."
-        return critic_steps, "critic_follow_up", reasoning_brief
+        return _apply_query_date_to_steps(state, critic_steps), "critic_follow_up", reasoning_brief
 
     default_steps = _build_default_research_steps(state)
 
     if not _llm_research_enabled():
-        return default_steps, "deterministic_only", None
+        return _apply_query_date_to_steps(state, default_steps), "deterministic_only", None
 
     llm_plan = run_llm_research_planner(state)
     if llm_plan is None:
-        return default_steps, "deterministic_fallback", None
+        return _apply_query_date_to_steps(state, default_steps), "deterministic_fallback", None
 
     steps = llm_plan.get("steps", [])
     if not _covers_required_evidence(state, steps):
-        return default_steps, "deterministic_fallback", llm_plan.get("reasoning_brief")
+        return _apply_query_date_to_steps(state, default_steps), "deterministic_fallback", llm_plan.get("reasoning_brief")
 
-    return steps, "llm", llm_plan.get("reasoning_brief")
+    return _apply_query_date_to_steps(state, steps), "llm", llm_plan.get("reasoning_brief")
 
 
 def run_research_agent(state: dict, skills: Optional[SkillRegistry] = None) -> dict:

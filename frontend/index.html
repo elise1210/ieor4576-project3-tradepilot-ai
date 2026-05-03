@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TradePilot AI</title>
+  <style>
+    :root {
+      --bg: #edf3f8;
+      --surface: #ffffff;
+      --surface-soft: #f6f8fb;
+      --ink: #142033;
+      --muted: #63718a;
+      --line: #d7e0ec;
+      --blue: #2563eb;
+      --blue-dark: #1746ad;
+      --green: #11834b;
+      --red: #bd3535;
+      --amber: #a66a00;
+      --shadow: 0 20px 48px rgba(20, 32, 51, 0.11);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      width: min(1240px, calc(100% - 44px));
+      margin: 0 auto;
+      padding: 28px 0 38px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 36px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--amber);
+    }
+
+    .status-dot.ok {
+      background: var(--green);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 410px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid rgba(215, 224, 236, 0.92);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .composer {
+      padding: 20px;
+      position: sticky;
+      top: 18px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #334056;
+    }
+
+    textarea,
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    textarea {
+      min-height: 132px;
+      padding: 13px 14px;
+      resize: vertical;
+      line-height: 1.45;
+      font-size: 15px;
+    }
+
+    input {
+      height: 44px;
+      padding: 0 13px;
+      text-transform: uppercase;
+    }
+
+    textarea:focus,
+    input:focus {
+      border-color: rgba(37, 99, 235, 0.75);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13);
+    }
+
+    .field {
+      margin-bottom: 15px;
+    }
+
+    .ticker-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .primary,
+    .secondary,
+    .sample {
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-weight: 800;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    }
+
+    .primary {
+      width: 100%;
+      height: 48px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 15px;
+    }
+
+    .primary:hover {
+      background: var(--blue-dark);
+    }
+
+    .primary:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .secondary {
+      height: 44px;
+      padding: 0 14px;
+      background: #eef4ff;
+      color: var(--blue-dark);
+      border-color: #c9d9ff;
+    }
+
+    .sample-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .sample {
+      min-height: 43px;
+      text-align: left;
+      padding: 10px 12px;
+      background: var(--surface-soft);
+      border-color: var(--line);
+      color: #344157;
+      line-height: 1.25;
+    }
+
+    .sample:hover {
+      background: #fff;
+      border-color: #b7c4d5;
+    }
+
+    .results {
+      display: grid;
+      gap: 18px;
+    }
+
+    .answer-panel {
+      padding: 24px;
+      min-height: 250px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #eef4ff;
+      color: var(--blue-dark);
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .chip.gray {
+      background: #f0f3f7;
+      color: #42516a;
+    }
+
+    .answer {
+      white-space: pre-wrap;
+      line-height: 1.6;
+      font-size: 16px;
+      color: #263349;
+    }
+
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 178px;
+      padding: 26px;
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.45;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      margin-top: 6px;
+      font-size: 18px;
+      font-weight: 850;
+      overflow-wrap: anywhere;
+    }
+
+    .chart-panel {
+      padding: 22px;
+    }
+
+    .chart-wrap {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      padding: 14px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 300px;
+      display: block;
+    }
+
+    details.panel {
+      overflow: hidden;
+    }
+
+    summary {
+      padding: 16px 18px;
+      font-weight: 850;
+      cursor: pointer;
+      list-style: none;
+      color: #263349;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    pre {
+      margin: 0;
+      max-height: 470px;
+      overflow: auto;
+      padding: 0 18px 18px;
+      color: #263349;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .spinner {
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      border: 2px solid #bcc9d9;
+      border-top-color: var(--blue);
+      animation: spin 0.8s linear infinite;
+    }
+
+    .error {
+      color: var(--red);
+      font-weight: 800;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (max-width: 940px) {
+      .app {
+        width: min(100% - 28px, 760px);
+      }
+
+      .topbar {
+        flex-direction: column;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .composer {
+        position: static;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .brand h1 {
+        font-size: 30px;
+      }
+
+      .ticker-row {
+        grid-template-columns: 1fr;
+      }
+
+      .secondary {
+        width: 100%;
+      }
+
+      .panel-header {
+        flex-direction: column;
+      }
+
+      .chips {
+        justify-content: flex-start;
+      }
+
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>TradePilot AI</h1>
+        <p>Evidence-based stock research and daily informational signals.</p>
+      </div>
+      <div class="status" id="healthStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Checking backend</span>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="panel composer">
+        <form id="chatForm">
+          <div class="field">
+            <label for="queryInput">Question</label>
+            <textarea id="queryInput">Should I buy Apple today?</textarea>
+          </div>
+
+          <button class="primary" type="submit" id="submitButton">Run Analysis</button>
+        </form>
+
+        <div class="sample-list">
+          <button class="sample" type="button" data-query="Should I buy Apple today?">Should I buy Apple today?</button>
+          <button class="sample" type="button" data-query="What is Nvidia's stock price today?">What is Nvidia's stock price today?</button>
+          <button class="sample" type="button" data-query="What was Meta's stock price trend in last 7 days?">What was Meta's stock price trend in last 7 days?</button>
+          <button class="sample" type="button" data-query="What was the sentiment of Nvidia on 2026-04-02?">What was the sentiment of Nvidia on 2026-04-02?</button>
+          <button class="sample" type="button" data-query="Summarize Nvidia news from yesterday">Summarize Nvidia news from yesterday</button>
+        </div>
+      </aside>
+
+      <section class="results">
+        <section class="panel answer-panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Answer</h2>
+            <div class="chips" id="metaChips"></div>
+          </div>
+
+          <div id="answerArea" class="empty">Ask a question to run the pipeline.</div>
+          <div id="metrics" class="metrics" hidden></div>
+        </section>
+
+        <section class="panel chart-panel" id="chartPanel" hidden>
+          <div class="panel-header">
+            <h2 class="panel-title">Price Chart</h2>
+            <div class="chips">
+              <span class="chip gray" id="chartTitle">Recent price</span>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chartCanvas" width="980" height="330"></canvas>
+          </div>
+        </section>
+
+        <details class="panel">
+          <summary>Structured State</summary>
+          <pre id="stateJson">{}</pre>
+        </details>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("chatForm");
+    const queryInput = document.getElementById("queryInput");
+    const submitButton = document.getElementById("submitButton");
+    const answerArea = document.getElementById("answerArea");
+    const metaChips = document.getElementById("metaChips");
+    const metrics = document.getElementById("metrics");
+    const stateJson = document.getElementById("stateJson");
+    const chartPanel = document.getElementById("chartPanel");
+    const chartTitle = document.getElementById("chartTitle");
+    const chartCanvas = document.getElementById("chartCanvas");
+    const statusDot = document.getElementById("statusDot");
+    const statusText = document.getElementById("statusText");
+
+    const currency = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2
+    });
+
+    function setBusy(isBusy) {
+      submitButton.disabled = isBusy;
+      submitButton.textContent = isBusy ? "Running..." : "Run Analysis";
+      if (isBusy) {
+        answerArea.className = "empty";
+        answerArea.innerHTML = '<span class="loading"><span class="spinner"></span>Collecting evidence</span>';
+      }
+    }
+
+    function firstTicker(state) {
+      return (state?.tickers || [])[0] || "";
+    }
+
+    function evidenceFor(state, key) {
+      const ticker = firstTicker(state);
+      return state?.evidence?.[key]?.[ticker] || {};
+    }
+
+    function addChip(text, variant = "") {
+      if (!text) return;
+      const chip = document.createElement("span");
+      chip.className = `chip ${variant}`.trim();
+      chip.textContent = text;
+      metaChips.appendChild(chip);
+    }
+
+    function renderMeta(state) {
+      metaChips.innerHTML = "";
+      addChip(state?.intent || "unknown");
+      (state?.tickers || []).forEach(ticker => addChip(ticker, "gray"));
+      addChip(state?.metadata?.stopped_reason || "pending", "gray");
+    }
+
+    function renderMetrics(state) {
+      const ticker = firstTicker(state);
+      const market = evidenceFor(state, "market");
+      const news = evidenceFor(state, "news");
+      const sentiment = evidenceFor(state, "sentiment");
+      const fundamentals = evidenceFor(state, "fundamentals");
+      const decision = state?.decision || {};
+
+      const rows = [
+        ["Ticker", ticker || "N/A"],
+        ["Price", market.current_price == null ? "N/A" : currency.format(market.current_price)],
+        ["Trend", market.trend_7d == null ? "N/A" : `${(market.trend_7d * 100).toFixed(2)}%`],
+        ["Signal", decision.recommendation || sentiment.sentiment || "N/A"],
+        ["Confidence", decision.confidence || state?.confidence || "N/A"],
+        ["Risk", decision.risk_level || "N/A"],
+        ["Articles", news.article_count == null ? "N/A" : String(news.article_count)],
+        ["Market Cap", fundamentals.market_cap_bucket || "N/A"]
+      ];
+
+      metrics.innerHTML = "";
+      rows.forEach(([label, value]) => {
+        const item = document.createElement("div");
+        item.className = "metric";
+        item.innerHTML = `<div class="metric-label">${label}</div><div class="metric-value">${value}</div>`;
+        metrics.appendChild(item);
+      });
+      metrics.hidden = false;
+    }
+
+    function drawChart(chartSpec) {
+      const data = chartSpec?.data || [];
+      if (!data.length) {
+        chartPanel.hidden = true;
+        return;
+      }
+
+      const values = data.map(point => Number(point.close ?? point.value)).filter(Number.isFinite);
+      if (!values.length) {
+        chartPanel.hidden = true;
+        return;
+      }
+
+      chartPanel.hidden = false;
+      chartTitle.textContent = chartSpec.title || "Price trend";
+
+      const ctx = chartCanvas.getContext("2d");
+      const width = chartCanvas.width;
+      const height = chartCanvas.height;
+      const pad = { left: 70, right: 36, top: 52, bottom: 74 };
+      const plotW = width - pad.left - pad.right;
+      const plotH = height - pad.top - pad.bottom;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = max - min || 1;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#f6f8fb";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "#d7e0ec";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, pad.top);
+      ctx.lineTo(pad.left, height - pad.bottom);
+      ctx.lineTo(width - pad.right, height - pad.bottom);
+      ctx.stroke();
+
+      ctx.fillStyle = "#63718a";
+      ctx.font = "13px system-ui";
+      ctx.textAlign = "right";
+      ctx.fillText(currency.format(max), pad.left - 10, pad.top + 8);
+      ctx.fillText(currency.format(min), pad.left - 10, height - pad.bottom);
+
+      const points = data.map((point, index) => {
+        const value = Number(point.close ?? point.value);
+        const x = pad.left + (data.length === 1 ? plotW : index / (data.length - 1) * plotW);
+        const y = pad.top + (1 - (value - min) / range) * plotH;
+        return {
+          x,
+          y,
+          label: point.date || point.label || "",
+          value
+        };
+      });
+
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.stroke();
+
+      points.forEach((point, index) => {
+        ctx.fillStyle = index === points.length - 1 ? "#11834b" : "#2563eb";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.font = "12px system-ui";
+      points.forEach((point) => {
+        const priceLabel = currency.format(point.value);
+        const priceWidth = ctx.measureText(priceLabel).width;
+        const priceX = Math.min(
+          Math.max(point.x, pad.left + priceWidth / 2),
+          width - pad.right - priceWidth / 2
+        );
+        const priceY = Math.max(point.y - 12, 18);
+
+        ctx.fillStyle = "#1f2a3d";
+        ctx.textAlign = "center";
+        ctx.fillText(priceLabel, priceX, priceY);
+      });
+
+      ctx.fillStyle = "#42516a";
+      ctx.font = "12px system-ui";
+      ctx.textAlign = "center";
+      points.forEach((point) => {
+        ctx.fillText(point.label, point.x, height - 30);
+      });
+    }
+
+    function renderCharts(charts) {
+      const chart = charts?.[0]?.charts?.[0];
+      if (!chart) {
+        chartPanel.hidden = true;
+        return;
+      }
+      drawChart(chart);
+    }
+
+    function renderResponse(payload) {
+      const state = payload.state || {};
+      answerArea.className = "answer";
+      answerArea.textContent = payload.answer || "No answer returned.";
+      renderMeta(state);
+      renderMetrics(state);
+      renderCharts(payload.charts || []);
+      stateJson.textContent = JSON.stringify(state, null, 2);
+    }
+
+    async function submitQuery(event) {
+      event.preventDefault();
+
+      const query = queryInput.value.trim();
+      if (!query) {
+        answerArea.className = "empty error";
+        answerArea.textContent = "Please enter a question.";
+        return;
+      }
+
+      setBusy(true);
+      chartPanel.hidden = true;
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query,
+            ticker: null
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+
+        renderResponse(await response.json());
+      } catch (error) {
+        answerArea.className = "empty error";
+        answerArea.textContent = error.message || "Request failed.";
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch("/health");
+        if (!response.ok) throw new Error("offline");
+        statusDot.classList.add("ok");
+        statusText.textContent = "Backend online";
+      } catch {
+        statusDot.classList.remove("ok");
+        statusText.textContent = "Backend offline";
+      }
+    }
+
+    form.addEventListener("submit", submitQuery);
+
+    document.querySelectorAll(".sample").forEach(button => {
+      button.addEventListener("click", () => {
+        queryInput.value = button.dataset.query || "";
+      });
+    });
+
+    checkHealth();
+  </script>
+</body>
+</html>

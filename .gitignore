@@ -7,3 +7,8 @@ __pycache__/
 *.ipynb
 # outputs
 outputs/
+
+# local model/data caches
+hf_cache/
+.cache/
+.\.cache\py-yfinance-cache/

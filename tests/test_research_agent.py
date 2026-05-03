@@ -150,6 +150,24 @@ class ResearchAgentTests(unittest.TestCase):
         self.assertEqual(result["evidence"]["sentiment"]["NVDA"]["source_ticker"], "NVDA")
         self.assertEqual(result["evidence"]["sentiment"]["AMD"]["source_ticker"], "AMD")
 
+    @patch.dict("os.environ", {"USE_LLM_RESEARCH": "false"}, clear=False)
+    def test_research_agent_passes_query_date_to_news_for_sentiment_query(self):
+        state = build_initial_state("What was the sentiment of Nvidia on 2026-04-02")
+        state["tickers"] = ["NVDA"]
+        state["plan"]["required_evidence"] = ["news", "sentiment"]
+
+        result = run_research_agent(
+            state,
+            skills={
+                "news": fake_news_skill,
+                "sentiment": fake_sentiment_skill,
+            },
+        )
+
+        self.assertEqual(result["gaps"], [])
+        self.assertEqual(result["evidence"]["news"]["NVDA"]["target_date_used"], "2026-04-02")
+        self.assertEqual(result["evidence"]["sentiment"]["NVDA"]["source_ticker"], "NVDA")
+
     def test_research_agent_stores_chart_when_required(self):
         state = build_initial_state("What is AAPL stock price today?")
         state["tickers"] = ["AAPL"]

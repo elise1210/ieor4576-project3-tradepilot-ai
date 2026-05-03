@@ -56,6 +56,23 @@ SUMMARY_RESEARCH_KEYWORDS = (
     "updates",
     "developments",
 )
+SENTIMENT_RESEARCH_KEYWORDS = (
+    "sentiment",
+    "tone",
+    "positive",
+    "negative",
+    "neutral",
+)
+PRICE_LOOKUP_KEYWORDS = (
+    "price",
+    "stock price",
+    "closing price",
+    "close",
+    "open",
+    "high",
+    "low",
+    "volume",
+)
 FINANCE_CONTEXT_KEYWORDS = (
     "stock",
     "stocks",
@@ -119,6 +136,31 @@ def refine_intent(query: str, intent: str) -> str:
         return "explanation"
 
     return intent
+
+
+def is_sentiment_research_query(query: str, intent: str) -> bool:
+    if intent in {"buy_sell_decision", "comparison"}:
+        return False
+
+    text = (query or "").strip().lower()
+    return any(keyword in text for keyword in SENTIMENT_RESEARCH_KEYWORDS)
+
+
+def is_price_lookup_query(query: str, intent: str) -> bool:
+    if intent in {"buy_sell_decision", "comparison"}:
+        return False
+
+    text = (query or "").strip().lower()
+    if not text:
+        return False
+
+    has_price_term = any(keyword in text for keyword in PRICE_LOOKUP_KEYWORDS)
+    has_news_or_sentiment_term = (
+        any(keyword in text for keyword in SUMMARY_RESEARCH_KEYWORDS)
+        or any(keyword in text for keyword in SENTIMENT_RESEARCH_KEYWORDS)
+    )
+
+    return has_price_term and not has_news_or_sentiment_term
 
 
 def infer_time_horizon(query: str) -> str:
@@ -210,7 +252,13 @@ def infer_tickers(
 
 
 def build_task_plan(intent: str, query: str = "") -> dict:
-    required = list(EVIDENCE_BY_INTENT.get(intent, ["news", "market", "fundamentals"]))
+    if is_price_lookup_query(query, intent):
+        required = ["market"]
+    elif is_sentiment_research_query(query, intent):
+        required = ["news", "sentiment"]
+    else:
+        required = list(EVIDENCE_BY_INTENT.get(intent, ["news", "market", "fundamentals"]))
+
     if should_show_chart_for_query(query) and "chart" not in required:
         required.append("chart")
 

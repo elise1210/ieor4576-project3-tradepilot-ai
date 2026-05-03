@@ -87,7 +87,7 @@ class ChartSkillTests(unittest.TestCase):
         self.assertFalse(result["chart_available"])
         self.assertIn("reason", result)
 
-    def test_chart_does_not_show_for_explicit_date_price_query(self):
+    def test_chart_shows_for_explicit_date_price_query(self):
         evidence = {
             "market": {
                 "history": [
@@ -103,8 +103,14 @@ class ChartSkillTests(unittest.TestCase):
             query="What was AAPL price on 2026.05.01?",
         )
 
-        self.assertFalse(result["chart_available"])
-        self.assertFalse(should_show_chart_for_query("AAPL price on Dec 1 2026"))
+        self.assertTrue(result["charts"])
+        self.assertEqual(result["charts"][0]["type"], "line")
+        self.assertTrue(should_show_chart_for_query("AAPL price on Dec 1 2026"))
+
+    def test_chart_shows_for_last_seven_days_price_trend_query(self):
+        self.assertTrue(
+            should_show_chart_for_query("What was Meta's stock price trend in last 7 days?")
+        )
 
 
 if __name__ == "__main__":

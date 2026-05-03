@@ -2,6 +2,8 @@ import re
 from datetime import date, datetime
 from typing import Any, Optional
 
+from app.skills.date_utils import parse_user_date
+
 CHART_SPEC_VERSION = "1.0"
 TODAY_TERMS = (
     "today",
@@ -10,6 +12,16 @@ TODAY_TERMS = (
     "currently",
     "right now",
     "now",
+)
+RECENT_RANGE_TERMS = (
+    "last 7 days",
+    "past 7 days",
+    "previous 7 days",
+    "recent 7 days",
+    "7-day",
+    "7 day",
+    "seven day",
+    "seven-day",
 )
 PRICE_TERMS = (
     "price",
@@ -85,6 +97,14 @@ def _mentions_today_or_latest(query: str, reference_date: Any = None) -> bool:
     return any(pattern in text for pattern in _today_date_patterns(today))
 
 
+def _mentions_recent_price_range(query: str) -> bool:
+    text = (query or "").strip().lower()
+    if not text:
+        return False
+
+    return any(term in text for term in RECENT_RANGE_TERMS)
+
+
 def _mentions_price_or_daily_signal(query: str) -> bool:
     text = (query or "").strip().lower()
     if not text:
@@ -95,15 +115,16 @@ def _mentions_price_or_daily_signal(query: str) -> bool:
 
 def should_show_chart_for_query(query: str, reference_date: Any = None) -> bool:
     """
-    Return True for today/latest price or daily-signal questions.
+    Return True for today/latest, recent-range, or date-specific price questions.
 
-    Historical date-specific, news-only, or sentiment-only questions should not
-    trigger a price chart. Future forecast-style questions should be handled by
-    the planner or decision agents.
+    News-only or sentiment-only questions should not trigger a price chart.
+    Future forecast-style questions should be handled by the planner or
+    decision agents.
     """
-    return (
+    return _mentions_price_or_daily_signal(query) and (
         _mentions_today_or_latest(query, reference_date=reference_date)
-        and _mentions_price_or_daily_signal(query)
+        or _mentions_recent_price_range(query)
+        or parse_user_date(query or "") is not None
     )
 
 

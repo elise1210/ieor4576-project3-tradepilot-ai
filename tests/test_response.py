@@ -107,6 +107,50 @@ class ResponseLayerTests(unittest.TestCase):
         self.assertIn("Company context:", answer)
         self.assertIn("Some supporting evidence was unavailable: sentiment.", answer)
 
+    def test_format_pipeline_answer_prioritizes_structured_sentiment(self):
+        state = build_initial_state("What was the sentiment of Nvidia on 2026-04-02")
+        state["intent"] = "general_research"
+        state["tickers"] = ["NVDA"]
+        state["plan"]["required_evidence"] = ["news", "sentiment"]
+        state["evidence"]["news"]["NVDA"] = {
+            "summary": "Nvidia news discussed AI chip demand and partnerships."
+        }
+        state["evidence"]["sentiment"]["NVDA"] = {
+            "sentiment": "positive",
+            "score": 0.42,
+            "article_count": 5,
+            "positive_count": 3,
+            "neutral_count": 1,
+            "negative_count": 1,
+            "requested_date": "2026-04-02",
+        }
+
+        answer = format_pipeline_answer(state)
+
+        self.assertIn("Sentiment for NVDA on 2026-04-02: positive.", answer)
+        self.assertIn("Score: +0.420", answer)
+        self.assertIn("Breakdown: 3 positive, 1 neutral, 1 negative.", answer)
+        self.assertIn("Nvidia news discussed AI chip demand", answer)
+
+    def test_format_pipeline_answer_prioritizes_requested_price(self):
+        state = build_initial_state("What was the price of Nvidia on 2026-04-02")
+        state["intent"] = "general_research"
+        state["tickers"] = ["NVDA"]
+        state["plan"]["required_evidence"] = ["market", "chart"]
+        state["evidence"]["market"]["NVDA"] = {
+            "ticker": "NVDA",
+            "current_price": 188.25,
+            "requested_date": "2026-04-02",
+            "used_end_date": "2026-04-02",
+            "trend_label": "sideways",
+            "trend_7d": -0.0072,
+        }
+
+        answer = format_pipeline_answer(state)
+
+        self.assertIn("NVDA's closing price on 2026-04-02 was $188.25.", answer)
+        self.assertIn("Recent market context:", answer)
+
     def test_format_pipeline_answer_includes_thin_evidence_note_for_explanation(self):
         state = build_initial_state("Why did NVDA move today?")
         state["intent"] = "explanation"
