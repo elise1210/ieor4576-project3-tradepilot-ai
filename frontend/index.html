@@ -662,7 +662,7 @@
               <button class="secondary" type="button" id="continueButton">Continue Analysis</button>
             </div>
             <p class="clarify-note" id="clarifyNote">
-              Your reply will be added to the original question so the planner can continue.
+              Your reply will resume this paused run from the planner's question.
             </p>
           </div>
         </section>
@@ -736,6 +736,7 @@
     const querySummaryText = document.getElementById("querySummaryText");
 
     let pendingClarification = null;
+    let activeThreadId = null;
 
     const currency = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -764,7 +765,7 @@
       querySummaryText.textContent = "";
       clarifyQuestion.textContent = "I need a little more detail before I continue the analysis.";
       clarifyInput.value = "";
-      clarifyNote.textContent = "Your reply will be added to the original question so the planner can continue.";
+      clarifyNote.textContent = "Your reply will resume this paused run from the planner's question.";
       startCopy.textContent = "Start a new run here. If the planner needs one more detail, the follow-up step will appear underneath.";
     }
 
@@ -778,7 +779,8 @@
         question,
         state,
         originalQuery,
-        clarificationType: state?.clarification_type || null
+        clarificationType: state?.clarification_type || null,
+        threadId: state?.metadata?.graph_thread_id || activeThreadId || null
       };
 
       clarifyQuestion.textContent = question || "I need a little more detail before I continue the analysis.";
@@ -812,7 +814,7 @@
         clarifyNote.textContent = "Choose a quick reply or type your own follow-up below.";
       } else {
         quickReplies.hidden = true;
-        clarifyNote.textContent = "Your reply will be added to the original question so the planner can continue.";
+        clarifyNote.textContent = "Your reply will resume this paused run from the planner's question.";
       }
     }
 
@@ -993,15 +995,22 @@
       }
     }
 
-    async function requestAnalysis(payload) {
-      const response = await fetch("/chat", {
+    async function requestAnalysis(url, payload) {
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
+        let detail = `Request failed with status ${response.status}`;
+        try {
+          const errorPayload = await response.json();
+          if (errorPayload?.detail) {
+            detail = errorPayload.detail;
+          }
+        } catch {}
+        throw new Error(detail);
       }
 
       return response.json();
@@ -1019,21 +1028,26 @@
       }
 
       const originalQuery = pendingClarification.originalQuery || queryInput.value.trim();
-      const clarificationType = pendingClarification.clarificationType || null;
+      const threadId = pendingClarification.threadId || activeThreadId;
       queryInput.value = originalQuery;
+
+      if (!threadId) {
+        answerArea.className = "empty error";
+        answerArea.textContent = "The paused run was lost. Please start the analysis again.";
+        return;
+      }
 
       setBusy(true);
       chartPanel.hidden = true;
 
       try {
-        const payload = await requestAnalysis({
-          original_query: originalQuery,
-          clarification_type: clarificationType,
-          clarification_value: reply,
-          ticker: null
+        const payload = await requestAnalysis("/chat/resume", {
+          thread_id: threadId,
+          clarification_value: reply
         });
-        if (payload?.query) {
-          queryInput.value = payload.query;
+        activeThreadId = payload?.thread_id || threadId;
+        if (payload?.state?.query) {
+          queryInput.value = payload.state.query;
         }
         renderResponse(payload);
       } catch (error) {
@@ -1055,14 +1069,17 @@
       }
 
       resetClarification();
+      activeThreadId = null;
       setBusy(true);
       chartPanel.hidden = true;
 
       try {
-        renderResponse(await requestAnalysis({
+        const payload = await requestAnalysis("/chat/start", {
           query,
           ticker: null
-        }));
+        });
+        activeThreadId = payload?.thread_id || null;
+        renderResponse(payload);
       } catch (error) {
         answerArea.className = "empty error";
         answerArea.textContent = error.message || "Request failed.";

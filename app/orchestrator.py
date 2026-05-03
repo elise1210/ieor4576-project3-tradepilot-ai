@@ -4,7 +4,7 @@ from typing import Callable, Dict, Optional
 from app.agents.critic_agent import run_critic_agent
 from app.agents.decision_agent import run_decision_agent
 from app.agents.planner_agent import run_planner_agent
-from app.graph.tradepilot_graph import run_tradepilot_graph
+from app.graph.runtime import start_tradepilot_graph_run
 from app.agents.research_agent import run_research_agent
 from app.state import build_initial_state
 
@@ -76,11 +76,13 @@ def _run_tradepilot_pipeline_graph(
     skills: Optional[SkillRegistry] = None,
     max_iterations: Optional[int] = None,
 ) -> dict:
-    state = build_initial_state(query=query, ticker=ticker)
-    metadata = state.setdefault("metadata", {})
-    if max_iterations is not None:
-        metadata["requested_max_iterations"] = max_iterations
-    return run_tradepilot_graph(state, skills=skills)
+    _, state, _, _ = start_tradepilot_graph_run(
+        query=query,
+        ticker=ticker,
+        skills=skills,
+        max_iterations=max_iterations,
+    )
+    return state
 
 
 def run_tradepilot_pipeline(
