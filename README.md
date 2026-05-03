@@ -9,6 +9,67 @@ TradePilot AI is a multi-agent stock analysis system built for IEOR 4576 Project
 
 The system combines market data, company news, fundamentals, sentiment analysis, chart generation, and a multi-step reasoning loop. It is designed for informational stock analysis only. It does not provide personalized financial advice or future price predictions.
 
+## Project 3 Submission Notes
+
+- Live URL: `TODO - add deployed public URL before final submission`
+- Demo surface:
+  - `GET /` serves the frontend UI
+  - `POST /chat`, `POST /chat/start`, and `POST /chat/resume` power the agent backend
+
+## Product Framing
+
+### User
+
+TradePilot is aimed at self-directed retail investors and finance-curious users who want fast, structured stock research without manually checking several dashboards, news sites, and charts.
+
+### Problem
+
+These users often need to combine multiple steps by hand:
+
+- look up the ticker
+- read recent company news
+- inspect short-term price movement
+- compare companies fairly
+- decide whether the available evidence is actually enough
+
+TradePilot compresses that workflow into one agent product that can clarify ambiguous questions, gather the relevant evidence, and return an informational answer with explicit caveats.
+
+### Monetization Path
+
+The clearest starting model is a subscription research tool:
+
+- free tier: limited daily questions and delayed data
+- paid tier: more queries, richer charts, faster refresh, saved analysis history
+
+The serving-cost logic fits the technical design:
+
+- hybrid deterministic paths reduce LLM spend on simple queries
+- tool outputs are structured before final synthesis
+- the critic can stop low-confidence answers instead of paying for unnecessary extra steps
+
+## Class Concepts Used
+
+TradePilot clearly uses these class topics:
+
+1. `LLMs`
+   The project uses OpenAI-backed planner, research, critic, and decision helpers, plus optional LLM news summarization, in [app/agents/llm_planner.py](app/agents/llm_planner.py), [app/agents/llm_research.py](app/agents/llm_research.py), [app/agents/llm_critic.py](app/agents/llm_critic.py), [app/agents/llm_decision.py](app/agents/llm_decision.py), and [app/skills/news.py](app/skills/news.py).
+2. `Context Engineering`
+   The system uses role-specific prompts, structured instructions, JSON-only output constraints, and schema-aware prompting in [app/prompts/](app/prompts), [app/skills/schema.py](app/skills/schema.py), and the LLM helper modules under [app/agents/](app/agents).
+3. `Evaluation`
+   Benchmark-based scoring for intent, tool usage, evidence coverage, stop reasons, and end-to-end success is implemented in [tests/evals/benchmark_cases.py](tests/evals/benchmark_cases.py), [tests/evals/benchmark_eval.py](tests/evals/benchmark_eval.py), and [tests/evals/test_benchmark_eval.py](tests/evals/test_benchmark_eval.py).
+4. `Tool Calling`
+   The research agent executes structured skill calls for `news`, `market`, `fundamentals`, `sentiment`, and `chart` in [app/agents/research_agent.py](app/agents/research_agent.py) using the registry in [app/skills/registry.py](app/skills/registry.py).
+5. `Frameworks`
+   LangGraph is used as the agent framework for graph execution, interruptions, and resume flow in [app/graph/tradepilot_graph.py](app/graph/tradepilot_graph.py), [app/graph/runtime.py](app/graph/runtime.py), and [requirements.txt](requirements.txt).
+6. `Multi-Agent Patterns`
+   The system is explicitly organized as a planner -> research -> critic -> decision pipeline with retry loops in [app/orchestrator.py](app/orchestrator.py), [app/graph/tradepilot_graph.py](app/graph/tradepilot_graph.py), and [app/agents/](app/agents).
+7. `Context, State & Memory`
+   Shared pipeline state, thread state, and per-agent metadata are managed in [app/state.py](app/state.py), [app/graph/state_schema.py](app/graph/state_schema.py), and [app/graph/runtime.py](app/graph/runtime.py).
+8. `Agents as Functions`
+   Each agent is exposed as a reusable function that transforms shared state, making the pipeline easy to orchestrate and test in [app/agents/planner_agent.py](app/agents/planner_agent.py), [app/agents/research_agent.py](app/agents/research_agent.py), [app/agents/critic_agent.py](app/agents/critic_agent.py), [app/agents/decision_agent.py](app/agents/decision_agent.py), and [app/orchestrator.py](app/orchestrator.py).
+
+TradePilot does not currently implement `RAG`, `Text-to-SQL`, or `Claude Code` concepts, so they are not claimed here.
+
 ## What The System Does
 
 TradePilot currently supports:
@@ -48,6 +109,65 @@ Planner -> Research -> Critic
                      -> enough evidence -> Decision or research-style response
                      -> not enough -> Research again
                      -> stop if max iteration budget is exhausted
+```
+
+### Structure Flow Chart
+
+```text
+                                +------------------+
+                                |      User        |
+                                |  query/request   |
+                                +---------+--------+
+                                          |
+                                          v
+                                +------------------+
+                                |  Planner Agent   |
+                                | intent, ticker,  |
+                                | evidence plan    |
+                                +----+--------+----+
+                                     |        |
+                     out_of_scope    |        | needs clarification
+                                     |        v
+                                     |  +----------------------+
+                                     |  | Human In The Loop    |
+                                     |  | clarification answer |
+                                     |  +----------+-----------+
+                                     |             |
+                                     |             v
+                                     |  +----------------------+
+                                     |  | Resume / updated     |
+                                     |  | query context        |
+                                     |  +----------+-----------+
+                                     |             |
+                                     |             v
+                                     |      +-------------+
+                                     +----->|  Research   |
+                                            |    Agent    |
+                                            | tool calls  |
+                                            +------+------+
+                                                   |
+                                                   v
+                                            +-------------+
+                                            |   Critic    |
+                                            |    Agent    |
+                                            | sufficiency |
+                                            +---+-----+---+
+                                                |     |
+                         not enough evidence ----+     +---- enough evidence
+                                                |                 |
+                                                v                 v
+                                       +----------------+   +-------------+
+                                       | follow-up loop |   | Decision    |
+                                       | retry research |   | Agent       |
+                                       +--------+-------+   | final rec / |
+                                                |           | comparison   |
+                                                +---------->+------+------+ 
+                                                            |
+                                                            v
+                                                +-------------------------+
+                                                | Final answer / response |
+                                                | + charts + state trace  |
+                                                +-------------------------+
 ```
 
 ### Default Iteration Budget
@@ -445,6 +565,7 @@ uvicorn app.main:app --reload
 
 Then open:
 
+- `http://127.0.0.1:8000/`
 - `http://127.0.0.1:8000/docs`
 
 ## Useful Demo Queries
@@ -481,18 +602,107 @@ Then open:
 
 ## Testing
 
-Run the full regression suite:
+Run the benchmark eval test set:
 
 ```powershell
-python -m unittest tests.test_planner_agent tests.test_research_agent tests.test_critic_agent tests.test_decision_agent tests.test_orchestrator tests.test_pipeline_flow tests.test_response tests.test_prompt_schema -v
+python -m unittest tests.evals.test_benchmark_eval -v
 ```
 
-Some especially useful focused suites:
+The benchmark suite is built from fixed query cases in [tests/evals/benchmark_cases.py](tests/evals/benchmark_cases.py) and scored by pure logic in [tests/evals/benchmark_eval.py](tests/evals/benchmark_eval.py). It evaluates the pipeline against structured ground truth rather than free-form answer wording.
 
-```powershell
-python -m unittest tests.test_critic_agent tests.test_research_agent -v
-python -m unittest tests.test_prompt_schema -v
-```
+### Benchmark Metrics
+
+The current benchmark layer reports these metrics:
+
+1. `Intent Accuracy %`
+   Measures whether the system classified the query into the correct intent.
+
+   Formula:
+   ```text
+   intent_accuracy_pct =
+   (# cases with correct intent / total # cases) * 100
+   ```
+
+2. `Ticker Accuracy %`
+   Measures whether the system identified the correct ticker list.
+
+   Formula:
+   ```text
+   ticker_accuracy_pct =
+   (# cases with correct tickers / total # cases) * 100
+   ```
+
+3. `Stop Reason Accuracy %`
+   Measures whether the pipeline finished in the expected state such as `decision_completed`, `research_completed`, `human_clarification_required`, or `out_of_scope`.
+
+   Formula:
+   ```text
+   stop_reason_accuracy_pct =
+   (# cases with correct stop reason / total # cases) * 100
+   ```
+
+4. `Right Tool Call %`
+   Measures how often the system called the tools that a benchmark case required. This is the main tool-selection score.
+
+   Per-case formula:
+   ```text
+   right_tool_call_pct =
+   (# required tools actually called / total # required tools) * 100
+   ```
+
+   Aggregate formula:
+   ```text
+   right_tool_call_pct =
+   (total required-tool hits across all cases / total required-tool expectations) * 100
+   ```
+
+5. `Wrong Tool Call %`
+   Measures how much of the executed tool usage was explicitly wrong for the benchmark case. Lower is better.
+
+   Per-case formula:
+   ```text
+   wrong_tool_call_pct =
+   (# forbidden tools called / total # called tools) * 100
+   ```
+
+   Aggregate formula:
+   ```text
+   wrong_tool_call_pct =
+   (total forbidden-tool hits across all cases / total # called tools across all cases) * 100
+   ```
+
+6. `Evidence Coverage %`
+   Measures whether the final state actually contains the evidence types the case required, such as `market`, `news`, `sentiment`, `fundamentals`, or `chart`.
+
+   Formula:
+   ```text
+   evidence_coverage_pct =
+   (# required evidence types present / total # required evidence types) * 100
+   ```
+
+7. `End-to-End Success %`
+   Measures the percentage of benchmark cases that pass all important checks together.
+
+   A case passes only if:
+   - intent is correct
+   - tickers are correct
+   - stop reason is correct
+   - all required tools were called
+   - no forbidden tools were called
+   - all required evidence is present
+
+   Formula:
+   ```text
+   end_to_end_success_pct =
+   (# fully passing cases / total # cases) * 100
+   ```
+
+### Reading The Scores
+
+- High `Right Tool Call %` means the agent is selecting the tools it should use.
+- Low `Wrong Tool Call %` means the agent is avoiding unnecessary or inappropriate tool calls.
+- High `Evidence Coverage %` means the state ends with the evidence the benchmark expected.
+- High `End-to-End Success %` means the whole pipeline is behaving correctly on the benchmark set, not just one isolated agent.
 
 ## Repository Layout
 
@@ -531,6 +741,8 @@ tradepilot-ai/
 |-- frontend/
 |-- demos/
 |-- tests/
+|   |-- unit/
+|   `-- evals/
 |-- README.md
 |-- requirements.txt
 |-- Dockerfile
