@@ -1,0 +1,69 @@
+{
+  "generated_at_utc": "2026-05-03T21:00:00+00:00",
+  "description": "Combined benchmark scorecard across V1 and V2. Metrics are combined from raw totals rather than averaged from percentages.",
+  "combination_method": {
+    "type": "weighted_by_raw_totals",
+    "notes": [
+      "Intent, ticker, stop reason, and end-to-end success are combined over total case counts.",
+      "Right tool call and evidence coverage are combined over total required-tool and required-evidence counts."
+    ]
+  },
+  "original": {
+    "sources": {
+      "v1": "tests/evals/results/deterministic/2026-05-03T193300.592745+0000_current_baseline.json",
+      "v2": "tests/evals/results/deterministic/2026-05-03T200452.853079+0000_harder_v2_baseline.json"
+    },
+    "totals": {
+      "case_count": 18,
+      "intent_correct": 17,
+      "tickers_correct": 15,
+      "stop_reason_correct": 14,
+      "required_tool_hits": 29,
+      "required_tool_total": 47,
+      "evidence_hits": 35,
+      "evidence_total": 47,
+      "case_pass": 10
+    },
+    "summary": {
+      "intent_accuracy_pct": 94.44,
+      "ticker_accuracy_pct": 83.33,
+      "stop_reason_accuracy_pct": 77.78,
+      "right_tool_call_pct": 61.7,
+      "evidence_coverage_pct": 74.47,
+      "end_to_end_success_pct": 55.56
+    }
+  },
+  "latest": {
+    "sources": {
+      "v1": "tests/evals/results/llm/2026-05-03T201927.398035+0000_llm_v1_baseline.json",
+      "v2": "tests/evals/results/llm/2026-05-03T202620.211640+0000_planner_fewshot_prompt.json"
+    },
+    "totals": {
+      "case_count": 18,
+      "intent_correct": 18,
+      "tickers_correct": 15,
+      "stop_reason_correct": 15,
+      "required_tool_hits": 36,
+      "required_tool_total": 47,
+      "evidence_hits": 36,
+      "evidence_total": 47,
+      "case_pass": 14
+    },
+    "summary": {
+      "intent_accuracy_pct": 100.0,
+      "ticker_accuracy_pct": 83.33,
+      "stop_reason_accuracy_pct": 83.33,
+      "right_tool_call_pct": 76.6,
+      "evidence_coverage_pct": 76.6,
+      "end_to_end_success_pct": 77.78
+    }
+  },
+  "delta_latest_minus_original": {
+    "intent_accuracy_pct": 5.56,
+    "ticker_accuracy_pct": 0.0,
+    "stop_reason_accuracy_pct": 5.56,
+    "right_tool_call_pct": 14.89,
+    "evidence_coverage_pct": 2.13,
+    "end_to_end_success_pct": 22.22
+  }
+}
