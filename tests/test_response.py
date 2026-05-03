@@ -170,6 +170,50 @@ class ResponseLayerTests(unittest.TestCase):
         self.assertIn("Evidence note:", answer)
         self.assertIn("The evidence is thin with only 2 articles", answer)
 
+    def test_format_pipeline_answer_falls_back_to_summary_when_decision_missing(self):
+        state = build_initial_state("Should I buy the iPhone company this week?")
+        state["intent"] = "buy_sell_decision"
+        state["tickers"] = ["AAPL"]
+        state["metadata"]["stopped_reason"] = "iteration_budget_exhausted"
+        state["metadata"]["critic_reasoning_brief"] = (
+            "The sentiment is mixed and the news coverage is thin, which may affect the confidence in the buy/sell decision."
+        )
+        state["guardrails"]["scope_note"] = (
+            "I cannot forecast the full week. I can provide a daily informational buy/hold/sell signal based on the latest available data."
+        )
+        state["evidence"]["news"]["AAPL"] = {
+            "summary": "Apple reported strong results and a large buyback, but supply concerns remain."
+        }
+        state["evidence"]["market"]["AAPL"] = {
+            "current_price": 280.14,
+            "trend_label": "upward",
+            "trend_7d": 0.0245,
+        }
+        state["evidence"]["sentiment"]["AAPL"] = {
+            "sentiment": "positive",
+            "score": 0.438,
+            "article_count": 6,
+        }
+        state["evidence"]["fundamentals"]["AAPL"] = {
+            "summary": "Apple is a mega-cap technology company with elevated valuation but strong scale."
+        }
+        state["critic_result"] = {
+            "semantic_enough": False,
+            "supporting_missing": [],
+        }
+
+        answer = format_pipeline_answer(state)
+
+        self.assertIn("I could not produce a reliable final recommendation within the iteration budget.", answer)
+        self.assertIn("Why no final recommendation:", answer)
+        self.assertIn("Current evidence summary:", answer)
+        self.assertIn("Sentiment is positive with score +0.438 across 6 article(s).", answer)
+        self.assertIn("Recent price trend is upward over 7 trading days (+2.45%).", answer)
+        self.assertIn("News snapshot: Apple reported strong results and a large buyback, but supply concerns remain.", answer)
+        self.assertIn("Company context:", answer)
+        self.assertIn("I cannot forecast the full week.", answer)
+        self.assertNotIn("Evidence note:", answer)
+
 
 if __name__ == "__main__":
     unittest.main()

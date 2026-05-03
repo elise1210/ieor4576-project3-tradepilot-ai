@@ -175,6 +175,98 @@ def _format_research_answer(state: dict) -> str:
     return "\n".join(lines).strip()
 
 
+def _first_summary_sentence(text: str) -> str:
+    raw = (text or "").strip()
+    if not raw:
+        return ""
+
+    first_line = raw.splitlines()[0].strip()
+    if not first_line:
+        return ""
+
+    for delimiter in (". ", ".\n"):
+        if delimiter in first_line:
+            return first_line.split(delimiter, 1)[0].strip() + "."
+
+    return first_line
+
+
+def _format_failed_decision_summary(state: dict) -> list[str]:
+    ticker = _first_ticker(state)
+    evidence = state.get("evidence", {})
+    news = evidence.get("news", {}).get(ticker, {})
+    market = evidence.get("market", {}).get(ticker, {})
+    fundamentals = evidence.get("fundamentals", {}).get(ticker, {})
+    sentiment = evidence.get("sentiment", {}).get(ticker, {})
+
+    bullets = []
+
+    if sentiment:
+        label = sentiment.get("sentiment", "neutral")
+        score = float(sentiment.get("score", 0.0))
+        article_count = sentiment.get("article_count", 0)
+        bullets.append(
+            f"Sentiment is {label} with score {score:+.3f} across {article_count} article(s)."
+        )
+
+    trend_label = market.get("trend_label")
+    trend_score = market.get("trend_7d")
+    if trend_label or trend_score is not None:
+        if trend_score is None:
+            bullets.append(f"Recent price trend is {trend_label}.")
+        else:
+            bullets.append(
+                f"Recent price trend is {trend_label} over 7 trading days ({float(trend_score):+.2%})."
+            )
+
+    news_summary = _first_summary_sentence(news.get("summary", ""))
+    if news_summary:
+        bullets.append(f"News snapshot: {news_summary}")
+
+    fundamentals_summary = _first_summary_sentence(fundamentals.get("summary", ""))
+    if fundamentals_summary:
+        bullets.append(f"Company context: {fundamentals_summary}")
+
+    return bullets
+
+
+def _format_failed_decision_answer(state: dict) -> str:
+    guardrails = state.get("guardrails", {})
+    scope_note = guardrails.get("scope_note")
+    stopped_reason = state.get("metadata", {}).get("stopped_reason")
+    critic_reasoning_brief = state.get("metadata", {}).get("critic_reasoning_brief")
+    summary_bullets = _format_failed_decision_summary(state)
+
+    lines = []
+    if scope_note:
+        lines.append(scope_note)
+        lines.append("")
+
+    if stopped_reason == "iteration_budget_exhausted":
+        lines.append(
+            "I collected evidence, but I could not produce a reliable final recommendation within the iteration budget."
+        )
+    else:
+        lines.append("I collected evidence, but I could not produce a reliable final recommendation.")
+
+    if critic_reasoning_brief:
+        lines.extend([
+            "",
+            "Why no final recommendation:",
+            f"- {critic_reasoning_brief}",
+        ])
+
+    if summary_bullets:
+        lines.extend([
+            "",
+            "Current evidence summary:",
+        ])
+        for bullet in summary_bullets:
+            lines.append(f"- {bullet}")
+
+    return "\n".join(lines).strip()
+
+
 def format_pipeline_answer(state: dict) -> str:
     guardrails = state.get("guardrails", {})
     if guardrails.get("out_of_scope"):
@@ -188,7 +280,7 @@ def format_pipeline_answer(state: dict) -> str:
 
     decision = state.get("decision") or {}
     if not decision:
-        return "The pipeline did not produce a final decision."
+        return _format_failed_decision_answer(state)
 
     scope_note = guardrails.get("scope_note")
 
