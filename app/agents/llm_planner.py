@@ -25,6 +25,30 @@ ALLOWED_INTENTS = {
 }
 ALLOWED_TIME_HORIZONS = {"short_term", "long_term", "unknown"}
 ALLOWED_CONFIDENCE = {"low", "medium", "high"}
+ALLOWED_CLARIFICATION_TYPES = {"ticker", "time_horizon", "custom"}
+
+
+def _normalize_clarification_options(value: object) -> Optional[list[dict]]:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        return None
+
+    options = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        label = item.get("label")
+        option_value = item.get("value")
+        if not isinstance(label, str) or not label.strip():
+            continue
+        if not isinstance(option_value, str) or not option_value.strip():
+            continue
+        options.append({
+            "label": label.strip(),
+            "value": option_value.strip(),
+        })
+    return options
 
 
 def _extract_json_object(text: str) -> Optional[dict]:
@@ -95,6 +119,16 @@ def _normalize_llm_planner_output(data: dict, provided_ticker: Optional[str] = N
     clarification_question = data.get("clarification_question")
     if not isinstance(clarification_question, str) or not clarification_question.strip():
         clarification_question = None
+    else:
+        clarification_question = clarification_question.strip()
+
+    clarification_type = data.get("clarification_type")
+    if clarification_type is not None:
+        clarification_type = str(clarification_type).strip().lower()
+    if clarification_type not in ALLOWED_CLARIFICATION_TYPES:
+        clarification_type = None
+
+    clarification_options = _normalize_clarification_options(data.get("clarification_options"))
 
     ticker_source = data.get("ticker_source")
     if not isinstance(ticker_source, str) or not ticker_source.strip():
@@ -114,6 +148,8 @@ def _normalize_llm_planner_output(data: dict, provided_ticker: Optional[str] = N
         "time_horizon": time_horizon,
         "needs_human": needs_human,
         "clarification_question": clarification_question,
+        "clarification_type": clarification_type,
+        "clarification_options": clarification_options,
         "ticker_source": ticker_source,
         "ticker_inference_confidence": confidence,
         "reasoning_brief": reasoning_brief,

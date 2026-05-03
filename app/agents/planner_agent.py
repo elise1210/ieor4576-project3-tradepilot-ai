@@ -327,6 +327,32 @@ def build_clarification_question(
     return None
 
 
+def build_clarification_type(
+    intent: str,
+    tickers: list[str],
+    time_horizon: str,
+) -> Optional[str]:
+    if not tickers:
+        return "ticker"
+
+    if intent == "buy_sell_decision" and time_horizon == "unknown":
+        return "time_horizon"
+
+    return None
+
+
+def build_clarification_options(
+    clarification_type: Optional[str],
+) -> list[dict]:
+    if clarification_type == "time_horizon":
+        return [
+            {"label": "Short-term", "value": "short_term"},
+            {"label": "Long-term", "value": "long_term"},
+        ]
+
+    return []
+
+
 def _apply_planner_result(
     state: dict,
     intent: str,
@@ -335,6 +361,8 @@ def _apply_planner_result(
     ticker_source: str,
     confidence: Optional[str],
     clarification_question: Optional[str] = None,
+    clarification_type: Optional[str] = None,
+    clarification_options: Optional[list[dict]] = None,
     planner_mode: Optional[str] = None,
     planner_reasoning_brief: Optional[str] = None,
 ) -> dict:
@@ -347,6 +375,13 @@ def _apply_planner_result(
         tickers,
         time_horizon,
     )
+    clarification_type = clarification_type or build_clarification_type(
+        intent,
+        tickers,
+        time_horizon,
+    )
+    if clarification_options is None:
+        clarification_options = build_clarification_options(clarification_type)
     out_of_scope = is_out_of_scope(query, tickers, intent)
     scope_note = build_scope_note(query, intent)
 
@@ -356,6 +391,8 @@ def _apply_planner_result(
     next_state["plan"] = plan
     next_state["needs_human"] = clarification_question is not None
     next_state["clarification_question"] = clarification_question
+    next_state["clarification_type"] = clarification_type if clarification_question else None
+    next_state["clarification_options"] = clarification_options if clarification_question else []
     next_state["guardrails"]["out_of_scope"] = out_of_scope
     next_state["guardrails"]["message"] = build_out_of_scope_message() if out_of_scope else None
     next_state["guardrails"]["scope_note"] = scope_note
@@ -413,12 +450,22 @@ def run_planner_agent(state: dict) -> dict:
         return fallback_state
 
     clarification_question = llm_result.get("clarification_question")
+    clarification_type = llm_result.get("clarification_type")
+    clarification_options = llm_result.get("clarification_options")
     if llm_result.get("needs_human") and clarification_question is None:
         clarification_question = build_clarification_question(
             llm_result["intent"],
             llm_result["tickers"],
             llm_result["time_horizon"],
         )
+    if llm_result.get("needs_human") and clarification_type is None:
+        clarification_type = build_clarification_type(
+            llm_result["intent"],
+            llm_result["tickers"],
+            llm_result["time_horizon"],
+        )
+    if llm_result.get("needs_human") and clarification_options is None:
+        clarification_options = build_clarification_options(clarification_type)
 
     return _apply_planner_result(
         state=state,
@@ -428,6 +475,8 @@ def run_planner_agent(state: dict) -> dict:
         ticker_source=llm_result["ticker_source"],
         confidence=llm_result["ticker_inference_confidence"],
         clarification_question=clarification_question,
+        clarification_type=clarification_type,
+        clarification_options=clarification_options,
         planner_mode="llm",
         planner_reasoning_brief=llm_result.get("reasoning_brief"),
     )

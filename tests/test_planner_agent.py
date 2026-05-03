@@ -40,6 +40,14 @@ class PlannerAgentTests(unittest.TestCase):
         self.assertEqual(result["tickers"], ["AAPL"])
         self.assertTrue(result["needs_human"])
         self.assertIn("short-term trading view", result["clarification_question"])
+        self.assertEqual(result["clarification_type"], "time_horizon")
+        self.assertEqual(
+            result["clarification_options"],
+            [
+                {"label": "Short-term", "value": "short_term"},
+                {"label": "Long-term", "value": "long_term"},
+            ],
+        )
 
     def test_missing_company_requests_clarification(self):
         state = build_initial_state("Should I buy this stock right now?")
@@ -52,6 +60,8 @@ class PlannerAgentTests(unittest.TestCase):
             result["clarification_question"],
             "Which company or ticker do you want me to analyze?",
         )
+        self.assertEqual(result["clarification_type"], "ticker")
+        self.assertEqual(result["clarification_options"], [])
 
     def test_explicit_ticker_wins_over_company_inference(self):
         state = build_initial_state("Should I buy MSFT this month?")

@@ -116,6 +116,55 @@
       top: 18px;
     }
 
+    .composer[data-mode="clarify"] {
+      border-color: #bfd3ff;
+      box-shadow: 0 24px 54px rgba(30, 63, 131, 0.12);
+    }
+
+    .control-block + .control-block {
+      margin-top: 18px;
+    }
+
+    .block-kicker {
+      margin: 0 0 8px;
+      color: var(--blue-dark);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .block-title {
+      margin: 0;
+      color: #1a2740;
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    .block-copy {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .start-shell {
+      margin-top: 16px;
+      padding: 18px;
+      border: 1px solid #d9e3f0;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(246, 248, 251, 0.95), #ffffff);
+    }
+
+    .composer[data-mode="clarify"] .start-shell {
+      padding: 14px;
+      background: #fbfcff;
+    }
+
+    .composer[data-mode="clarify"] #queryInput {
+      min-height: 90px;
+    }
+
     label {
       display: block;
       margin-bottom: 8px;
@@ -205,6 +254,122 @@
       display: grid;
       gap: 8px;
       margin-top: 18px;
+    }
+
+    .clarify-panel {
+      padding: 18px;
+      border: 1px solid #bcd2ff;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #f7faff 0%, #eef4ff 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    }
+
+    .clarify-panel[hidden] {
+      display: none;
+    }
+
+    .clarify-kicker {
+      margin: 0 0 8px;
+      color: var(--blue-dark);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .clarify-title {
+      margin: 0;
+      color: #162744;
+      font-size: 22px;
+      line-height: 1.12;
+    }
+
+    .clarify-question {
+      margin: 14px 0 0;
+      color: #23324a;
+      line-height: 1.5;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .clarify-actions {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .query-summary {
+      margin-top: 14px;
+      padding: 12px 13px;
+      border: 1px solid #d8e3f7;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .query-summary[hidden] {
+      display: none;
+    }
+
+    .summary-label {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .summary-text {
+      margin: 6px 0 0;
+      color: #263349;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .quick-replies[hidden] {
+      display: none;
+    }
+
+    .quick-reply {
+      min-height: 38px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid #c9d9ff;
+      background: #eef4ff;
+      color: var(--blue-dark);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .clarify-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .clarify-row input {
+      text-transform: none;
+    }
+
+    .clarify-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .sample-block {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid #e2e8f2;
     }
 
     .sample {
@@ -425,6 +590,10 @@
         width: 100%;
       }
 
+      .clarify-row {
+        grid-template-columns: 1fr;
+      }
+
       .panel-header {
         flex-direction: column;
       }
@@ -454,22 +623,61 @@
 
     <section class="workspace">
       <aside class="panel composer">
-        <form id="chatForm">
-          <div class="field">
-            <label for="queryInput">Question</label>
-            <textarea id="queryInput">Should I buy Apple today?</textarea>
+        <section class="control-block">
+          <p class="block-kicker">Start Analysis</p>
+          <h2 class="block-title">Ask a stock question</h2>
+          <p class="block-copy" id="startCopy">
+            Start a new run here. If the planner needs one more detail, the follow-up step will appear underneath.
+          </p>
+
+          <div class="start-shell">
+            <form id="chatForm">
+              <div class="field">
+                <label for="queryInput">Question</label>
+                <textarea id="queryInput">Should I buy Apple today?</textarea>
+              </div>
+
+              <button class="primary" type="submit" id="submitButton">Run Analysis</button>
+            </form>
           </div>
+        </section>
 
-          <button class="primary" type="submit" id="submitButton">Run Analysis</button>
-        </form>
+        <section class="clarify-panel" id="clarifyPanel" hidden>
+          <p class="clarify-kicker">Agent Needs Clarification</p>
+          <h3 class="clarify-title">Continue Analysis</h3>
+          <div class="query-summary" id="querySummary" hidden>
+            <p class="summary-label">Original Question</p>
+            <p class="summary-text" id="querySummaryText">Should I buy Apple today?</p>
+          </div>
+          <p class="clarify-question" id="clarifyQuestion">
+            I need a little more detail before I continue the analysis.
+          </p>
+          <div class="clarify-actions">
+            <div class="quick-replies" id="quickReplies" hidden></div>
+            <div class="clarify-row">
+              <div class="field" style="margin-bottom: 0;">
+                <label for="clarifyInput">Your Reply</label>
+                <input id="clarifyInput" placeholder="Type your follow-up answer here">
+              </div>
+              <button class="secondary" type="button" id="continueButton">Continue Analysis</button>
+            </div>
+            <p class="clarify-note" id="clarifyNote">
+              Your reply will be added to the original question so the planner can continue.
+            </p>
+          </div>
+        </section>
 
-        <div class="sample-list">
-          <button class="sample" type="button" data-query="Should I buy Apple today?">Should I buy Apple today?</button>
-          <button class="sample" type="button" data-query="What is Nvidia's stock price today?">What is Nvidia's stock price today?</button>
-          <button class="sample" type="button" data-query="What was Meta's stock price trend in last 7 days?">What was Meta's stock price trend in last 7 days?</button>
-          <button class="sample" type="button" data-query="What was the sentiment of Nvidia on 2026-04-02?">What was the sentiment of Nvidia on 2026-04-02?</button>
-          <button class="sample" type="button" data-query="Summarize Nvidia news from yesterday">Summarize Nvidia news from yesterday</button>
-        </div>
+        <section class="control-block sample-block">
+          <p class="block-kicker">Try a Sample</p>
+          <p class="block-copy">Use one of these prompts to test the planner, lookup flows, and charts quickly.</p>
+          <div class="sample-list">
+            <button class="sample" type="button" data-query="Should I buy Apple today?">Should I buy Apple today?</button>
+            <button class="sample" type="button" data-query="What is Nvidia's stock price today?">What is Nvidia's stock price today?</button>
+            <button class="sample" type="button" data-query="What was Meta's stock price trend in last 7 days?">What was Meta's stock price trend in last 7 days?</button>
+            <button class="sample" type="button" data-query="What was the sentiment of Nvidia on 2026-04-02?">What was the sentiment of Nvidia on 2026-04-02?</button>
+            <button class="sample" type="button" data-query="Summarize Nvidia news from yesterday">Summarize Nvidia news from yesterday</button>
+          </div>
+        </section>
       </aside>
 
       <section class="results">
@@ -516,6 +724,18 @@
     const chartCanvas = document.getElementById("chartCanvas");
     const statusDot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
+    const composerPanel = document.querySelector(".composer");
+    const startCopy = document.getElementById("startCopy");
+    const clarifyPanel = document.getElementById("clarifyPanel");
+    const clarifyQuestion = document.getElementById("clarifyQuestion");
+    const clarifyInput = document.getElementById("clarifyInput");
+    const clarifyNote = document.getElementById("clarifyNote");
+    const quickReplies = document.getElementById("quickReplies");
+    const continueButton = document.getElementById("continueButton");
+    const querySummary = document.getElementById("querySummary");
+    const querySummaryText = document.getElementById("querySummaryText");
+
+    let pendingClarification = null;
 
     const currency = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -525,10 +745,74 @@
 
     function setBusy(isBusy) {
       submitButton.disabled = isBusy;
+      continueButton.disabled = isBusy;
       submitButton.textContent = isBusy ? "Running..." : "Run Analysis";
+      continueButton.textContent = isBusy ? "Continuing..." : "Continue Analysis";
       if (isBusy) {
         answerArea.className = "empty";
         answerArea.innerHTML = '<span class="loading"><span class="spinner"></span>Collecting evidence</span>';
+      }
+    }
+
+    function resetClarification() {
+      pendingClarification = null;
+      composerPanel.dataset.mode = "start";
+      clarifyPanel.hidden = true;
+      quickReplies.hidden = true;
+      quickReplies.innerHTML = "";
+      querySummary.hidden = true;
+      querySummaryText.textContent = "";
+      clarifyQuestion.textContent = "I need a little more detail before I continue the analysis.";
+      clarifyInput.value = "";
+      clarifyNote.textContent = "Your reply will be added to the original question so the planner can continue.";
+      startCopy.textContent = "Start a new run here. If the planner needs one more detail, the follow-up step will appear underneath.";
+    }
+
+    function quickReplyOptions(state) {
+      const options = state?.clarification_options;
+      return Array.isArray(options) ? options : [];
+    }
+
+    function showClarification(question, state, originalQuery) {
+      pendingClarification = {
+        question,
+        state,
+        originalQuery,
+        clarificationType: state?.clarification_type || null
+      };
+
+      clarifyQuestion.textContent = question || "I need a little more detail before I continue the analysis.";
+      clarifyInput.value = "";
+      composerPanel.dataset.mode = "clarify";
+      clarifyPanel.hidden = false;
+      if (originalQuery) {
+        querySummary.hidden = false;
+        querySummaryText.textContent = originalQuery;
+      } else {
+        querySummary.hidden = true;
+        querySummaryText.textContent = "";
+      }
+      startCopy.textContent = "This run is paused until you answer the planner's follow-up question below. You can still start over at any time.";
+
+      const options = quickReplyOptions(state);
+      quickReplies.innerHTML = "";
+      if (options.length) {
+        options.forEach(option => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "quick-reply";
+          button.textContent = option.label || option.value;
+          button.addEventListener("click", () => {
+            clarifyInput.value = option.label || option.value;
+            void continueClarification(option.value);
+          });
+          quickReplies.appendChild(button);
+        });
+        quickReplies.hidden = false;
+        clarifyNote.textContent = "Choose a quick reply or type your own follow-up below.";
+      } else {
+        quickReplies.hidden = true;
+        clarifyNote.textContent = "Your reply will be added to the original question so the planner can continue.";
       }
     }
 
@@ -697,6 +981,67 @@
       renderMetrics(state);
       renderCharts(payload.charts || []);
       stateJson.textContent = JSON.stringify(state, null, 2);
+
+      if (state?.needs_human || state?.metadata?.stopped_reason === "human_clarification_required") {
+        showClarification(
+          state?.clarification_question || payload.answer || "",
+          state,
+          pendingClarification?.originalQuery || payload.query || queryInput.value.trim()
+        );
+      } else {
+        resetClarification();
+      }
+    }
+
+    async function requestAnalysis(payload) {
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    async function continueClarification(prefilledReply) {
+      const reply = (prefilledReply ?? clarifyInput.value).trim();
+      if (!pendingClarification) {
+        return;
+      }
+
+      if (!reply) {
+        clarifyInput.focus();
+        return;
+      }
+
+      const originalQuery = pendingClarification.originalQuery || queryInput.value.trim();
+      const clarificationType = pendingClarification.clarificationType || null;
+      queryInput.value = originalQuery;
+
+      setBusy(true);
+      chartPanel.hidden = true;
+
+      try {
+        const payload = await requestAnalysis({
+          original_query: originalQuery,
+          clarification_type: clarificationType,
+          clarification_value: reply,
+          ticker: null
+        });
+        if (payload?.query) {
+          queryInput.value = payload.query;
+        }
+        renderResponse(payload);
+      } catch (error) {
+        answerArea.className = "empty error";
+        answerArea.textContent = error.message || "Request failed.";
+      } finally {
+        setBusy(false);
+      }
     }
 
     async function submitQuery(event) {
@@ -709,24 +1054,15 @@
         return;
       }
 
+      resetClarification();
       setBusy(true);
       chartPanel.hidden = true;
 
       try {
-        const response = await fetch("/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query,
-            ticker: null
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-
-        renderResponse(await response.json());
+        renderResponse(await requestAnalysis({
+          query,
+          ticker: null
+        }));
       } catch (error) {
         answerArea.className = "empty error";
         answerArea.textContent = error.message || "Request failed.";
@@ -748,9 +1084,19 @@
     }
 
     form.addEventListener("submit", submitQuery);
+    continueButton.addEventListener("click", () => {
+      void continueClarification();
+    });
+    clarifyInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void continueClarification();
+      }
+    });
 
     document.querySelectorAll(".sample").forEach(button => {
       button.addEventListener("click", () => {
+        resetClarification();
         queryInput.value = button.dataset.query || "";
       });
     });

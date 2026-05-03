@@ -42,6 +42,8 @@ def build_initial_state(query: str, ticker: Optional[str] = None) -> dict:
         "confidence": None,
         "needs_human": False,
         "clarification_question": None,
+        "clarification_type": None,
+        "clarification_options": [],
         "guardrails": {
             "out_of_scope": False,
             "message": None,
