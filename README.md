@@ -11,7 +11,7 @@ The system combines market data, company news, fundamentals, sentiment analysis,
 
 ## Project 3 Submission Notes
 
-- Live URL: `TODO - add deployed public URL before final submission`
+- Live URL:  https://tradepilot-ai-555207000332.us-central1.run.app
 - Demo surface:
   - `GET /` serves the frontend UI
   - `POST /chat`, `POST /chat/start`, and `POST /chat/resume` power the agent backend
