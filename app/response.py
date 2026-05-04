@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+from app.agents.decision_agent import build_decision_preview
 from app.skills.compliance import run_compliance_skill
 
 
@@ -14,6 +15,14 @@ def apply_compliance_to_state(state: dict) -> dict:
     decision = next_state.get("decision")
 
     if not isinstance(decision, dict) or not decision:
+        stopped_reason = next_state.get("metadata", {}).get("stopped_reason")
+        if (
+            stopped_reason == "iteration_budget_exhausted"
+            and next_state.get("intent") in {"buy_sell_decision", "comparison"}
+        ):
+            preview = build_decision_preview(next_state)
+            if preview:
+                next_state["decision_preview"] = preview
         return next_state
 
     if decision.get("type") == "comparison":
@@ -198,8 +207,14 @@ def _format_failed_decision_summary(state: dict) -> list[str]:
     market = evidence.get("market", {}).get(ticker, {})
     fundamentals = evidence.get("fundamentals", {}).get(ticker, {})
     sentiment = evidence.get("sentiment", {}).get(ticker, {})
+    preview = state.get("decision_preview") or {}
 
     bullets = []
+
+    if preview.get("type") == "provisional_single" and preview.get("risk_level"):
+        bullets.append(
+            f"Provisional risk level from the available evidence is {preview['risk_level']}."
+        )
 
     if sentiment:
         label = sentiment.get("sentiment", "neutral")

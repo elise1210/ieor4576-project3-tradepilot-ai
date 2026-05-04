@@ -849,14 +849,19 @@
       const sentiment = evidenceFor(state, "sentiment");
       const fundamentals = evidenceFor(state, "fundamentals");
       const decision = state?.decision || {};
+      const primaryDecision = decision?.type === "comparison"
+        ? (decision?.per_ticker?.[ticker] || {})
+        : decision;
+      const preview = state?.decision_preview || {};
+      const primaryPreview = preview?.per_ticker?.[ticker] || preview;
 
       const rows = [
         ["Ticker", ticker || "N/A"],
         ["Price", market.current_price == null ? "N/A" : currency.format(market.current_price)],
         ["Trend", market.trend_7d == null ? "N/A" : `${(market.trend_7d * 100).toFixed(2)}%`],
-        ["Signal", decision.recommendation || sentiment.sentiment || "N/A"],
-        ["Confidence", decision.confidence || state?.confidence || "N/A"],
-        ["Risk", decision.risk_level || "N/A"],
+        ["Signal", primaryDecision.recommendation || decision.recommendation || sentiment.sentiment || "N/A"],
+        ["Confidence", primaryDecision.confidence || decision.confidence || state?.confidence || "N/A"],
+        ["Risk", primaryDecision.risk_level || primaryPreview.risk_level || "N/A"],
         ["Articles", news.article_count == null ? "N/A" : String(news.article_count)],
         ["Market Cap", fundamentals.market_cap_bucket || "N/A"]
       ];

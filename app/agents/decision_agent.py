@@ -326,6 +326,65 @@ def _apply_llm_decision_overlay(state: dict, draft_decision: dict) -> tuple[dict
     return decision, "llm", reasoning_brief
 
 
+def _build_ticker_decision(state: dict, ticker: str) -> dict:
+    decision = generate_decision(
+        ticker=ticker,
+        news_result=_extract_ticker_evidence(state, "news", ticker),
+        sentiment_result=_extract_ticker_evidence(state, "sentiment", ticker),
+        market_result=_extract_ticker_evidence(state, "market", ticker),
+        company_result=_extract_ticker_evidence(state, "fundamentals", ticker),
+    )
+    return _augment_decision_with_critic_feedback(state, ticker, decision)
+
+
+def build_decision_preview(state: dict) -> Optional[dict]:
+    """
+    Build a non-final preview from the currently available evidence.
+
+    This is used when the critic never approves a full decision, but the UI can
+    still safely surface provisional metrics such as risk.
+    """
+    tickers = list(state.get("tickers", []))
+    if not tickers:
+        return None
+
+    decisions = {
+        ticker: _build_ticker_decision(state, ticker)
+        for ticker in tickers
+    }
+    note = (
+        "Provisional preview from currently available evidence only; no final "
+        "recommendation was approved."
+    )
+
+    if len(tickers) == 1:
+        decision = decisions[tickers[0]]
+        return {
+            "type": "provisional_single",
+            "ticker": decision.get("ticker"),
+            "risk_level": decision.get("risk_level"),
+            "confidence": decision.get("confidence"),
+            "combined_score": decision.get("combined_score"),
+            "note": note,
+        }
+
+    return {
+        "type": "provisional_comparison",
+        "tickers": tickers,
+        "per_ticker": {
+            ticker: {
+                "ticker": payload.get("ticker"),
+                "risk_level": payload.get("risk_level"),
+                "confidence": payload.get("confidence"),
+                "combined_score": payload.get("combined_score"),
+            }
+            for ticker, payload in decisions.items()
+        },
+        "confidence": state.get("confidence") or "Medium",
+        "note": note,
+    }
+
+
 def run_decision_agent(state: dict) -> dict:
     next_state = clone_state(state)
     tickers = list(next_state.get("tickers", []))
@@ -338,15 +397,7 @@ def run_decision_agent(state: dict) -> dict:
 
     decisions = {}
     for ticker in tickers:
-        decision = generate_decision(
-            ticker=ticker,
-            news_result=_extract_ticker_evidence(next_state, "news", ticker),
-            sentiment_result=_extract_ticker_evidence(next_state, "sentiment", ticker),
-            market_result=_extract_ticker_evidence(next_state, "market", ticker),
-            company_result=_extract_ticker_evidence(next_state, "fundamentals", ticker),
-        )
-        decision = _augment_decision_with_critic_feedback(next_state, ticker, decision)
-        decisions[ticker] = decision
+        decisions[ticker] = _build_ticker_decision(next_state, ticker)
 
     if len(tickers) == 1:
         final_decision = decisions[tickers[0]]

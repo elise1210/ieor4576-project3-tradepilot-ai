@@ -214,6 +214,31 @@ class ResponseLayerTests(unittest.TestCase):
         self.assertIn("I cannot forecast the full week.", answer)
         self.assertNotIn("Evidence note:", answer)
 
+    def test_apply_compliance_adds_provisional_preview_for_exhausted_decision(self):
+        state = build_initial_state("Should I buy Apple this week?")
+        state["intent"] = "buy_sell_decision"
+        state["tickers"] = ["AAPL"]
+        state["metadata"]["stopped_reason"] = "iteration_budget_exhausted"
+        state["evidence"]["market"]["AAPL"] = {
+            "trend_7d": 0.0245,
+            "trend_label": "upward",
+            "volatility": 0.041,
+        }
+        state["evidence"]["sentiment"]["AAPL"] = {
+            "sentiment": "positive",
+            "score": 0.438,
+            "dispersion": 0.12,
+        }
+
+        safe_state = apply_compliance_to_state(state)
+        preview = safe_state.get("decision_preview", {})
+        answer = format_pipeline_answer(safe_state)
+
+        self.assertEqual(preview.get("type"), "provisional_single")
+        self.assertEqual(preview.get("risk_level"), "High")
+        self.assertEqual(preview.get("confidence"), "Low")
+        self.assertIn("Provisional risk level from the available evidence is High.", answer)
+
 
 if __name__ == "__main__":
     unittest.main()
